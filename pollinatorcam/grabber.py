@@ -8,70 +8,92 @@ Grab images from camera
 """
 
 import argparse
+import io
 import os
 import threading
 import time
 
 import cv2
 import numpy
+import PIL.Image
 import requests
 
 import tfliteserve
 
-
-class CircularBuffer:
-    def __init__(self, n_frames, example_image):
-        shape = [n_frames, ] + list(example_image.shape)
-        self.buffer = numpy.zeros(shape)
-        self.n_frames = n_frames
-        self.index = 0
-
-    def add_frame(self, frame):
-        self.buffer[self.index] = frame
-        self.index = (self.index + 1) % self.n_frames
-
-    def get_frames(self):
-        # start with oldest frame
-        i = (self.index + 1) % self.n_frames
-        for _ in range(n_frames):
-            yield self.buffer[i]
-            i = (i + 1) % self.n_frames
-
-    def reset(self):
-        self.buffers[:] = 0
-        self.index = 0
+from . import gstrecorder
 
 
-class CaptureThread(threading.Thread):
-    def __init__(self, url):
-        super(CaptureThread, self).__init__(
-            daemon=True)
-        self.frame = None
-        self.url = url
-        self.running = threading.Event()
-        self.frame_lock = threading.Lock()
+
+class SnapshotThread(threading.Thread):
+    def __init__(self, *args, **kwargs):
+        ip = kwargs.pop('ip')
+        if 'retry' in kwargs:
+            self.retry = kwargs.pop('retry')
+        else:
+            self.retry = False
+        kwargs['daemon'] = kwargs.get('daemon', True)
+        super(SnapshotThread, self).__init__(*args, **kwargs)
+
+        # authentication
+        self.da = requests.auth.HTTPDigestAuth(
+            os.environ['PCAM_USER'], os.environ['PCAM_PASSWORD'])
+        self.url = "http://{user}:{password}@{ip}/cgi-bin/snapshot.cgi".format(
+            user=os.environ['PCAM_USER'],
+            password=os.environ['PCAM_PASSWORD'],
+            ip=ip)
+        self.timestamp = None
+        self.snapshot = None
+        self.error = None
+        self.keep_requesting = True
+
+        #self.lock = threading.Lock()
+        self.snap_ready = threading.Condition() 
+
+    def _request_snapshot(self):
+        r = requests.get(self.url, auth=self.da)
+        #with self.lock:
+        with self.snap_ready:
+            self.timestamp = time.time()
+            if r.status_code != 200:
+                self.error = r
+                self.snapshot = None
+            else:
+                self.snapshot = numpy.array(PIL.Image.open(io.BytesIO(r.content)))
+                self.error = None
+            self.snap_ready.notify()
 
     def run(self):
-        self.cap = cv2.VideoCapture(self.url)
-        self.running.set()
-        while self.running.is_set():
-            r, im = self.cap.read()
-            if not r:
-                continue
-            with self.frame_lock:
-                self.frame = im
-    
+        while self.keep_requesting:
+            try:
+                self._request_snapshot()
+            except Exception as e:
+                with self.snap_ready:
+                    self.error = e
+                    self.timestamp = time.time()
+                    self.snapshot = None
+                    self.snap_ready.notify()
+                if not self.retry:
+                    break
+
+    def next_snapshot(self, timeout=None):
+        #with self.lock:
+        with self.snap_ready:
+            if not self.snap_ready.wait(timeout=timeout):
+                raise RuntimeError("No new snapshot within timeout")
+            if self.error is None:
+                return True, self.snapshot, self.timestamp
+            return False, self.error, self.timestamp
+
     def stop(self):
-        self.running.clear()
-        self.join()
+        if self.is_alive():
+            self.keep_requesting = False
+            self.join()
 
-    def get_frame(self):
-        with self.frame_lock:
-            if self.frame is None:
-                return None
-            return numpy.copy(self.frame)
+    def __del__(self):
+        self.stop()
 
 
+# TODO use dahuacam
 def build_camera_url(
         ip, user=None, password=None, channel=1, subtype=0):
     if user is None:
@@ -90,12 +112,20 @@ def build_camera_url(
 
 class Grabber:
     def __init__(self, ip, name=None):
+        """
+        Make (and start) snapshot thread
+        On new snapshots, acquire
+        """
         if name is None:
             name = ip
+        self.ip = ip
+
 
         self.url = build_camera_url(ip)
 
         self.fps = 5
+
+        # TODO configure camera
         # set camera fps
         da = requests.auth.HTTPDigestAuth(
             os.environ['PCAM_USER'], os.environ['PCAM_PASSWORD'])
@@ -111,32 +141,38 @@ class Grabber:
         if r.status_code != 200:
             raise ValueError("Failed to set framerate to %s: %s" % (fps, r))
 
-        print("Creating capture thread")
-        self.cap = CaptureThread(self.url)
-        self.cap.start()
-        #self.cap = cv2.VideoCapture(self.url)
-        #self.cap = cv2.VideoCapture('/home/graham/Desktop/v1m188.mp4')
+        print("Creating snapshot thread")
+        self.snapshot_thread = SnapshotThread(ip=ip)
+        self.snapshot_thread.start()
 
         self.name = name
         print("Connecting to tfliteserve")
         self.client = tfliteserve.Client(self.name)
 
-        self.n_buffered_frames = 5
-        self.analyze_every_n = 5  # analyze every n_th frame
+        # start initial recorder
+        self.recorder_index = -1
+        self.recorder = None
+        self.next_recorder()
+
+        self.analyze_every_n = 1
         self.frame_count = -1
 
-        self.fps_period = 1. / self.fps
         self.last_frame = time.monotonic()
 
-        self.fourcc = cv2.VideoWriter_fourcc(*'X264')
-
-        self.saving = None
+        self.saving = False
         self.crop = None
-        self.circular_buffer = None
         print("Done __init__")
 
+    def next_recorder(self):
+        if self.recorder is not None:
+            self.recorder.stop_recording()
+        self.recorder_index += 1
+        self.recorder = gstrecorder.Recorder(
+            ip=self.ip, filename='test%05i.mp4' % self.recorder_index)
+        self.recorder.start()
+
     def __del__(self):
-        self.cap.stop()
+        self.snapshot_thread.stop()
 
     def build_crop(self, example_image):
         h, w = example_image.shape[:2]
@@ -169,31 +205,17 @@ class Grabber:
         return False
     
     def update(self):
-        # if fps period passed...
-        t = time.monotonic()
-        dt = (t - self.last_frame)
-        if dt < self.fps_period:
-            # TODO sleep?
-            time.sleep(0.03)
-            #if dt > 0.1:
-            #    time.sleep(0.05)
-            return
+        r, im, ts = self.snapshot_thread.next_snapshot()
+        if not r:  # error
+            raise Exception("Snapshot error: %s" % im)
 
-        # grab frame
-        im = self.cap.get_frame()
-        if im is None:
-            return
-        #r, im = self.cap.read()
-        #if not r:
-        #    return
-        self.last_frame = t
+        self.last_frame = ts
         self.frame_count += 1
         #print("Acquired:", self.frame_count)
 
         # if first frame
         if self.crop is None:
             self.crop = self.build_crop(im)
-            self.circular_buffer = CircularBuffer(self.n_buffered_frames, im)
 
         # if frame should be checked...
         if self.frame_count % self.analyze_every_n == 0:
@@ -202,25 +224,24 @@ class Grabber:
             triggered = self.analyze_frame(im)
             print("Trigger:", triggered)
 
-            if triggered and self.saving is None:
+            if triggered and not self.saving:
                 # start saving
+                # TODO associate timestamp, results, and recorder filename
+                self.recorder.start_recording()
+                self.saving = True
                 fn = '%s_%i.avi' % (self.name, self.frame_count)
                 h, w = im.shape[:2]
                 print("Started saving to %s" % fn)
-                #self.saving = cv2.VideoWriter(
-                #    fn, self.fourcc, 30, (w, h), 1)
-            elif not triggered and self.saving is not None:
+            elif not triggered and self.saving:
+                # TODO continue saving for 1 more second?
                 # stop saving
+                self.recorder.stop_recording()
+                self.saving = False
+                # advance recorder to next filename
+                self.next_recorder()
                 print("Stopped saving at frame %i" % self.frame_count)
                 self.saving = None
 
-        if self.saving is not None:
-            print("Saving...")
-            self.saving.write(im)
-
-        # add to buffer  # TODO only when not saving?
-        print("Adding frame to buffer")
-        self.circular_buffer.add_frame(im)
         print("Done")
 
     def run(self):

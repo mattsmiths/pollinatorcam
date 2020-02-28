@@ -7,33 +7,39 @@ gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GLib, GObject
 
 
-user = os.environ['PCAM_USER']
-password = os.environ['PCAM_PASSWORD']
-ip = '192.168.0.104'
-url = (
-    "rtsp://{user}:{password}@{ip}:554/cam/realmonitor?channel=1&subtype=0".format(
-        user=user, password=password, ip=ip))
+url_string = "rtsp://{user}:{password}@{ip}:554/cam/realmonitor?channel=1&subtype=0"
 
 
-default_cmd = (
+cmd_string = (
     'rtspsrc location="{url}" !'
     'queue min-threshold-time=1000000000 !'
     'valve name=valve !'
     'rtph265depay !'
     'h265parse !'
     'mp4mux !'
-    'filesink name=sink location=test.mp4').format(url=url)
+    'filesink name=sink location=test.mp4')
 
 
 class Recorder(threading.Thread):
     def __init__(self, *args, **kwargs):
+        ip = kwargs.pop('ip')
         filename = kwargs.pop('filename')
+        if 'user' in kwargs:
+            user = kwargs.pop('user')
+        else:
+            user = os.environ['PCAM_USER']
+        if 'password' in kwargs:
+            password = kargs.pop('password')
+        else:
+            password = os.environ['PCAM_PASSWORD']
         super(Recorder, self).__init__(*args, **kwargs)
 
         if not Gst.is_initialized():
             Gst.init([])
 
-        self.pipeline = Gst.parse_launch(default_cmd)
+        url = url_string.format(user=user, password=password, ip=ip)
+        cmd = cmd_string.format(url=url)
+        self.pipeline = Gst.parse_launch(cmd)
 
         self.valve = self.pipeline.get_child_by_name("valve")
         self.valve.set_property('drop', True)
@@ -76,9 +82,9 @@ class Recorder(threading.Thread):
         self.playmode = False
 
 
-def test_recorder():
+def test_recorder(ip='192.168.0.4'):
     # create recorder instance
-    r = Recorder(filename='test_file.mp4')
+    r = Recorder(filename='test_file.mp4', ip=ip)
     # start running (begins filling circular buffer)
     r.start()
     time.sleep(1)  # wait a bit
@@ -95,7 +101,7 @@ def test_recorder():
     t1 = time.monotonic()
     print("Joining took: %s" % (t1 - t0))
     time.sleep(2)
-    r = Recorder(filename='test_file2.mp4')
+    r = Recorder(filename='test_file2.mp4', ip=ip)
     r.start()
     time.sleep(1)
     r.start_recording()
