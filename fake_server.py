@@ -11,7 +11,9 @@ m = {
 def f(in_array):
     a = numpy.zeros(
         m['output']['shape'], dtype=m['output']['dtype'])
-    if in_array.mean() < 128:
+    v = in_array.mean()
+    print("mean: %s" % v)
+    if v < 50:  # if dark, output 1s
         a[:] = 1
     return a
 

@@ -73,6 +73,19 @@ class DahuaCamera:
         # TODO parse text, check return code
         return self.get_config('VideoInOptions')
 
+    def set_config(self, config):
+        url = (
+            "http://{ip}/cgi-bin/configManager.cgi?"
+            "action=setConfig".format(ip=self.ip))
+        if len(config) == 0:
+            raise ValueError("No parameters provided")
+        for c in config:
+            assert len(c) == 2
+            k, v = c
+            url += "&%s=%s" % (k, v)
+        r = self.session.get(url)
+        # TODO parse text, check return code
+
     def set_options(self, **kwargs):
         """Set video and audio input options or encode config"""
         url = (

@@ -111,7 +111,7 @@ def build_camera_url(
 
 
 class Grabber:
-    def __init__(self, ip, name=None):
+    def __init__(self, ip, name=None, retry=False):
         """
         Make (and start) snapshot thread
         On new snapshots, acquire
@@ -126,6 +126,7 @@ class Grabber:
         self.fps = 5
 
         # TODO configure camera
+        # TODO turn OFF motion detection it slows snapshots
         # set camera fps
         da = requests.auth.HTTPDigestAuth(
             os.environ['PCAM_USER'], os.environ['PCAM_PASSWORD'])
@@ -140,9 +141,22 @@ class Grabber:
             auth=da)
         if r.status_code != 200:
             raise ValueError("Failed to set framerate to %s: %s" % (fps, r))
+        # set gop
+        # TODO gop must be HIGH to allow valve turn on at any time
+        # is there a way around this that doesn't inflate the video
+        # size?
+        gop = 1
+        r = requests.get(
+            burl +
+            '/cgi-bin/configManager.cgi?action=setConfig&Encode[0]'
+            '.MainFormat[0].Video.GOP={gop}'.format(gop=gop),
+            auth=da)
+        if r.status_code != 200:
+            raise ValueError("Failed to set gop to %s: %s" % (gop, r))
+
 
         print("Creating snapshot thread")
-        self.snapshot_thread = SnapshotThread(ip=ip)
+        self.snapshot_thread = SnapshotThread(ip=ip, retry=retry)
         self.snapshot_thread.start()
 
         self.name = name
@@ -160,6 +174,8 @@ class Grabber:
         self.last_frame = time.monotonic()
 
         self.saving = False
+        self.hold_on = 1.0
+        self._last_untrigger = None
         self.crop = None
         print("Done __init__")
 
@@ -199,15 +215,17 @@ class Grabber:
         print("Image[%s]: (%s, %s)" % (cim.shape, cim.min(), cim.max()))
         o = self.client.run(cim)
         if numpy.any(o) > 0.5:  # TODO parse results
-            #li = o.argmax()
-            #print("Detected:", self.client.buffers.meta['labels'][li])
-            return True
+            li = o.argmax()
+            print("Detected:", self.client.buffers.meta['labels'][li])
+            #return True
         return False
     
     def update(self):
         r, im, ts = self.snapshot_thread.next_snapshot()
         if not r:  # error
-            raise Exception("Snapshot error: %s" % im)
+            #raise Exception("Snapshot error: %s" % im)
+            print("Snaphsot error: %s" % im)
+            return False
 
         self.last_frame = ts
         self.frame_count += 1
@@ -232,15 +250,23 @@ class Grabber:
                 fn = '%s_%i.avi' % (self.name, self.frame_count)
                 h, w = im.shape[:2]
                 print("Started saving to %s" % fn)
+                self._last_untrigger = None
+                self.hold_on = 1.0
             elif not triggered and self.saving:
-                # TODO continue saving for 1 more second?
-                # stop saving
-                self.recorder.stop_recording()
-                self.saving = False
-                # advance recorder to next filename
-                self.next_recorder()
-                print("Stopped saving at frame %i" % self.frame_count)
-                self.saving = None
+                t = time.time()
+                if self._last_untrigger is not None:
+                    self.hold_on -= t - self._last_untrigger
+                self._last_untrigger = t
+                if self.hold_on < 0.0:
+                    # TODO continue saving for 1 more second?
+                    # stop saving
+                    self.recorder.stop_recording()
+                    self.saving = False
+                    # advance recorder to next filename
+                    self.next_recorder()
+                    print("Stopped saving at frame %i" % self.frame_count)
+                    self.hold_on = 1.0
+                    self._last_untrigger = None
 
         print("Done")
 
@@ -263,6 +289,9 @@ def cmdline_run():
     parser.add_argument(
         '-p', '--password', default=None,
         help='camera password')
+    parser.add_argument(
+        '-r', '--retry', default=False, action='store_true',
+        help='retry on snapshot errors')
     parser.add_argument(
         '-u', '--user', default=None,
         help='camera username')
