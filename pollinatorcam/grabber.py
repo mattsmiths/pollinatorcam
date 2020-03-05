@@ -23,6 +23,62 @@ import tfliteserve
 from . import gstrecorder
 
 
+class CaptureThread(threading.Thread):
+    def __init__(self, *args, **kwargs):
+        ip = kwargs.pop('ip')
+        if 'retry' in kwargs:
+            self.retry = kwargs.pop('retry')
+        else:
+            self.retry = False
+        kwargs['daemon'] = kwargs.get('daemon', True)
+        super(CaptureThread, self).__init__(*args, **kwargs)
+
+        self.url = build_camera_url(ip, channel=1, subtype=1)
+        self.cap = cv2.VideoCapture(self.url)
+
+        self.error = None
+        self.keep_running = True
+
+        self.timestamp = None
+        self.image = None
+        self.image_ready = threading.Condition() 
+
+    def _read_frame(self):
+        r, im = self.cap.read()
+        with self.image_ready:
+            self.timestamp = time.time()
+            self.image = im
+            self.image_ready.notify()
+
+    def run(self):
+        while self.keep_running:
+            try:
+                self._read_frame()
+            except Exception as e:
+                with self.image_ready:
+                    self.error = e
+                    self.timestamp = time.time()
+                    self.image = None
+                    self.image_ready.notify()
+                if not self.retry:
+                    break
+
+    def next_image(self, timeout=None):
+        with self.image_ready:
+            if not self.image_ready.wait(timeout=timeout):
+                raise RuntimeError("No new image within timeout")
+            if self.error is None:
+                return True, self.image, self.timestamp
+            return False, self.error, self.timestamp
+
+    def stop(self):
+        if self.is_alive():
+            self.keep_running = False
+            self.join()
+
+    def __del__(self):
+        self.stop()
+
 
 class SnapshotThread(threading.Thread):
     def __init__(self, *args, **kwargs):
@@ -127,6 +183,7 @@ class Grabber:
 
         # TODO configure camera
         # TODO turn OFF motion detection it slows snapshots
+        # TODO setup snapshot framerate and destination
         # set camera fps
         da = requests.auth.HTTPDigestAuth(
             os.environ['PCAM_USER'], os.environ['PCAM_PASSWORD'])
@@ -154,10 +211,23 @@ class Grabber:
         if r.status_code != 200:
             raise ValueError("Failed to set gop to %s: %s" % (gop, r))
 
+        # set extra format fps
+        efps = 1
+        r = requests.get(
+            burl +
+            '/cgi-bin/configManager.cgi?action=setConfig&Encode[0]'
+            '.ExtraFormat[0].Video.FPS={efps}'.format(efps=efps),
+            auth=da)
+        if r.status_code != 200:
+            raise ValueError("Failed to set sub framerate to %s: %s" % (fps, r))
 
-        print("Creating snapshot thread")
-        self.snapshot_thread = SnapshotThread(ip=ip, retry=retry)
-        self.snapshot_thread.start()
+
+
+        print("Creating capture thread")
+        #self.snapshot_thread = SnapshotThread(ip=ip, retry=retry)
+        #self.snapshot_thread.start()
+        self.capture_thread = CaptureThread(ip=ip, retry=retry)
+        self.capture_thread.start()
 
         self.name = name
         print("Connecting to tfliteserve")
@@ -188,7 +258,8 @@ class Grabber:
         self.recorder.start()
 
     def __del__(self):
-        self.snapshot_thread.stop()
+        #self.snapshot_thread.stop()
+        self.capture_thread.stop()
 
     def build_crop(self, example_image):
         h, w = example_image.shape[:2]
@@ -221,10 +292,11 @@ class Grabber:
         return False
     
     def update(self):
-        r, im, ts = self.snapshot_thread.next_snapshot()
+        #r, im, ts = self.snapshot_thread.next_snapshot()
+        r, im, ts = self.capture_thread.next_image()
         if not r:  # error
             #raise Exception("Snapshot error: %s" % im)
-            print("Snaphsot error: %s" % im)
+            print("Image error: %s" % im)
             return False
 
         self.last_frame = ts
@@ -291,7 +363,7 @@ def cmdline_run():
         help='camera password')
     parser.add_argument(
         '-r', '--retry', default=False, action='store_true',
-        help='retry on snapshot errors')
+        help='retry on acquisition errors')
     parser.add_argument(
         '-u', '--user', default=None,
         help='camera username')
