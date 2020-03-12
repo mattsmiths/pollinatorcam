@@ -45,9 +45,12 @@ class CaptureThread(threading.Thread):
 
     def _read_frame(self):
         r, im = self.cap.read()
+        if not r or im is None:
+            raise Exception("Failed to capture: %s, %s" % (r, im))
         with self.image_ready:
             self.timestamp = time.time()
             self.image = im
+            self.error = None
             self.image_ready.notify()
 
     def run(self):
@@ -62,6 +65,9 @@ class CaptureThread(threading.Thread):
                     self.image_ready.notify()
                 if not self.retry:
                     break
+                print("Restarting capture")
+                del self.cap
+                self.cap = cv2.VideoCapture(self.url)
 
     def next_image(self, timeout=None):
         with self.image_ready:
@@ -226,7 +232,9 @@ class Grabber:
         print("Creating capture thread")
         #self.snapshot_thread = SnapshotThread(ip=ip, retry=retry)
         #self.snapshot_thread.start()
-        self.capture_thread = CaptureThread(ip=ip, retry=retry)
+        self.ip = ip
+        self.retry = retry
+        self.capture_thread = CaptureThread(ip=self.ip, retry=self.retry)
         self.capture_thread.start()
 
         self.name = name
@@ -293,8 +301,20 @@ class Grabber:
     
     def update(self):
         #r, im, ts = self.snapshot_thread.next_snapshot()
-        r, im, ts = self.capture_thread.next_image()
-        if not r:  # error
+        try:
+            # TODO wait frame period * 1.5
+            r, im, ts = self.capture_thread.next_image(timeout=1.5)
+        except RuntimeError as e:
+            # next image timed out
+            if not self.capture_thread.is_alive():
+                print("Restarting capture thread")
+                self.capture_thread = CaptureThread(ip=self.ip, retry=self.retry)
+                self.capture_thread.start()
+                # TODO restart record also?
+            else:
+                print("Frame grab timed out, waiting...")
+            return
+        if not r or im is None:  # error
             #raise Exception("Snapshot error: %s" % im)
             print("Image error: %s" % im)
             return False
