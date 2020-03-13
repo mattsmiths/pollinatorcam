@@ -46,14 +46,14 @@
 - Adjust lens to correct focus
 - One time setup
   - user/password
-  - extraformat dimensions
-  - extraformat fps
   - extraformat h265
   - extraformat bitrate
-  - mainformat dimensions
-  - mainformat fps
+  - extraformat dimensions
+  - extraformat fps
   - mainformat h265
   - mainformat bitrate
+  - mainformat dimensions
+  - mainformat fps
   - disable motion detection
   - remove videowidget overlays
   - enable ftp settings

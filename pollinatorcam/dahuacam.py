@@ -24,6 +24,89 @@ def build_camera_url(
             subtype=subtype))
 
 
+def initial_configuration(c, reboot=True):
+    config_result = {}
+    if c.password != os.environ['PCAM_PASSWORD']:
+        r = c.set_password(os.environ['PCAM_PASSWORD'])
+        config_result['password'] = r
+
+    # extra format
+    prefix = 'Encode[0].ExtraFormat[0].Video'
+    config = [
+        ('resolution', '352x240'),
+        ('BitRate', '19'),
+        ('BitRateControl', 'CBR'),
+        ('Compression', 'H.265'),
+        ('CustomResolutionName', 'CIF'),
+        ('FPS', '1'),
+        ('GOP', '30'),
+        ('Height', '240'),
+        ('Pack', 'DHAV'),
+        ('Priority', '0'),
+        ('Profile', 'Main'),
+        ('Quality', '4'),
+        ('QualityRange', '6'),
+        ('SVCTLayer', '1'),
+        ('Width', '352'),
+    ]
+    r = c.set_config(config, prefix=prefix)
+    config_result['extra'] = r
+    print("Set %s: %s" % (prefix, r))
+
+    #table.Encode[0].ExtraFormat[0].VideoEnable=true
+
+    # main format
+    prefix = 'Encode[0].MainFormat[0].Video'
+    config = [
+        ('resolution', '2592x1944'),
+        ('BitRate', '2048'),
+        ('BitRateControl', 'CBR'),
+        ('Compression', 'H.265'),
+        ('CustomResolutionName', '2592x1944'),
+        ('FPS', '5'),
+        ('GOP', '1'),
+        ('Height', '1944'),
+        ('Pack', 'DHAV'),
+        ('Priority', '0'),
+        ('Profile', 'Main'),
+        ('Quality', '4'),
+        ('QualityRange', '6'),
+        ('SVCTLayer', '1'),
+        ('Width', '2592'),
+    ]
+    r = c.set_config(config, prefix=prefix)
+    config_result['main'] = r
+    print("Set %s: %s" % (prefix, r))
+
+    #table.Encode[0].MainFormat[0].VideoEnable=true
+
+    # disable motion detection
+    r = c.set_config([
+        ('MotionDetect[0].Enable', 'false'),
+        ('MotionDetect[0].EventHandler.RecordEnable', 'false'),
+    ])
+
+    # videowidget overlay
+    t = c.get_video_widget()
+    config = []
+    for l in t.splitlines():
+        if 'EncodeBlend' in l:
+            k = '.'.join(l.split('.')[1:]).split('=')[0]
+            config.append((k, 'false'))
+    r = c.set_config(config)
+    config_result['widget'] = r
+
+    # TODO enable ftp
+    # TODO snapshot schedule
+    # TODO snapshot saving
+    # TODO snapshot period
+   
+    # TODO reboot
+    if reboot:
+        c.reboot()
+    return config_result
+
+
 class DahuaCamera:
     def __init__(self, ip, user=None, password=None):
         if user is None:
@@ -73,7 +156,11 @@ class DahuaCamera:
         # TODO parse text, check return code
         return self.get_config('VideoInOptions')
 
-    def set_config(self, config):
+    def set_config(self, config, prefix=None):
+        if prefix is None:
+            add_prefix = lambda k: k
+        else:
+            add_prefix = lambda k: '.'.join((prefix, k))
         url = (
             "http://{ip}/cgi-bin/configManager.cgi?"
             "action=setConfig".format(ip=self.ip))
@@ -82,9 +169,10 @@ class DahuaCamera:
         for c in config:
             assert len(c) == 2
             k, v = c
-            url += "&%s=%s" % (k, v)
+            url += "&%s=%s" % (add_prefix(k), v)
         r = self.session.get(url)
         # TODO parse text, check return code
+        return r.text
 
     def set_options(self, **kwargs):
         """Set video and audio input options or encode config"""
@@ -258,3 +346,24 @@ class DahuaCamera:
 
     def get_locales_config(self):
         return self.get_config('Locales')
+
+    def set_password(self, password):
+        url = (
+            "http://{ip}/cgi-bin/userManager.cgi?"
+            "action=modifyPassword&name={user}&"
+            "pwd={new_password}&pwdOld={password}".format(
+                ip=self.ip, user=self.user,
+                new_password=password, password=self.password))
+        r = self.session.get(url)
+        if r.ok:
+            self.password = password
+            self.session.auth = requests.auth.HTTPDigestAuth(
+                self.user, self.password)
+        return r.text
+
+    def reboot(self):
+        url = (
+            "http://{ip}/cgi-bin/magicBox.cgi?action=reboot".format(
+                ip=self.ip))
+        r = self.session.get(url)
+        return r.text
