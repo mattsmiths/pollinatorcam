@@ -137,6 +137,37 @@ class Trigger:
         self.triggered = trigger
 
 
+class TriggeredRecording:
+    def __init__(self, ip, duty_cycle, post_time, min_time):
+        super(TriggeredRecording, self).__init__(
+            duty_cycle, post_time, min_time)
+
+        self.ip = ip
+        # TODO pre record time
+        self.recorder_index = -1
+        self.recorder = None
+        self.next_recorder()
+
+    def next_recorder(self):
+        if self.recorder is not None:
+            self.recorder.stop_recording()
+        self.recorder_index += 1
+        # TODO filename
+        self.recorder = gstrecorder.Recorder(
+            ip=self.ip, filename='test%05i.mp4' % self.recorder_index)
+        self.recorder.start()
+
+    def activate(self, t):
+        super(TriggeredRecording, self).activate(t)
+        if self.recorder.recording:
+            self.next_recorder()
+        self.recorder.start_recording()
+
+    def deactivate(self, t):
+        super(TriggeredRecording, self).deactivate(t)
+        self.next_recorder()
+
+
 def test():
 
     def run_triggerer(trig, N, ts_func): 

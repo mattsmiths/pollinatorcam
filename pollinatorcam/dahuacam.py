@@ -3,7 +3,9 @@
 # - whatever is needed for camera configuration
 # - fps control
 
+import datetime
 import os
+import urllib
 
 import requests
 
@@ -333,13 +335,13 @@ class DahuaCamera:
         return r.text
 
     def set_current_time(self, new_datetime=None):
-        # TODO get current datetime
-        # convert to timestamp
-        ts = None
-        raise NotImplementedError()
+        if new_datetime is None:
+            new_datetime = datetime.datetime.now()
+        s = datetime.datetime.stftime(s, "%Y-%m-%d %H:%M:%S")
+        qs = urllib.parse.quote(s)
         url = (
             "http://{ip}/cgi-bin/global.cgi?"
-            "action=setCurrentTime&time={ts}".format(ip=self.ip, ts=ts))
+            "action=setCurrentTime&time={qs}".format(ip=self.ip, qs=qs))
         r = self.session.get(url)
         # TODO parse text, check return code
         return r.text
