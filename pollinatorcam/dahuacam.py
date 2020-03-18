@@ -32,6 +32,10 @@ def initial_configuration(c, reboot=True):
         r = c.set_password(os.environ['PCAM_PASSWORD'])
         config_result['password'] = r
 
+    # set current time
+    r = c.set_current_time()
+    config_result['time'] = r
+
     # extra format
     prefix = 'Encode[0].ExtraFormat[0].Video'
     config = [
@@ -98,6 +102,9 @@ def initial_configuration(c, reboot=True):
     r = c.set_config(config)
     config_result['widget'] = r
 
+    # TODO name? General.MachineName (use mac address?)
+    # Network.eth0.PhysicalAddress
+
     # TODO enable ftp
     # TODO snapshot schedule
     # TODO snapshot saving
@@ -106,6 +113,64 @@ def initial_configuration(c, reboot=True):
     # TODO reboot
     if reboot:
         c.reboot()
+    return config_result
+
+
+def set_snap_config(c, nas, fps):
+    for k in ('ip', 'user', 'password'):
+        assert k in nas, "nas config missing %s" % k
+
+    config_result = {}
+
+    # set current time
+    r = c.set_current_time()
+    config_result['time'] = r
+
+    # Encode[0].SnapFormat[0]
+    # - resolution 2592x1944
+    # - quality 5
+    # - FPS (can be fractional)
+    prefix = 'Encode[0].SnapFormat[0].Video'
+    config = [
+        ('resolution', '2592x1944'),
+        ('Quality', '5'),
+        ('FPS', str(fps)),
+    ]
+    r = c.set_config(config, prefix=prefix)
+    config_result['encode'] = r
+
+    # Snap[0]:
+    # - HolidayEnable=true
+    # - TimeSection[0-6][0]=1 00:00:00-23:59:59
+    prefix = 'Snap[0]'
+    config = [('HolidayEnable', 'true')]
+    key_bs = 'TimeSection[{}][{}]'
+    value_bs = '{}%2000:00:00-23:59:59'
+    for ts in range(8):
+        #for dow in range(6):
+        for dow in range(1):  # not allowed to set anything other than 0
+            k = key_bs.format(ts, dow)
+            v = value_bs.format(int(dow == 0))
+            config.append((k, v))
+    r = c.set_config(config, prefix=prefix)
+    config_result['snap'] = r
+
+    # NAS[0]:
+    # - Address=<NAS IP>
+    # - Enable=true
+    # - UserName=<user>
+    # - Password=<password>
+    prefix = 'NAS[0]'
+    config = [
+        ('Address', nas['ip']),
+        ('UserName', nas['user']),
+        ('Password', nas['password']),
+        ('Directory', str(nas.get('directory', ' '))),
+        ('Enable', str(nas.get('enable', False)).lower()),
+    ]
+    r = c.set_config(config, prefix=prefix)
+    config_result['nas'] = r
+
     return config_result
 
 
@@ -172,6 +237,7 @@ class DahuaCamera:
             assert len(c) == 2
             k, v = c
             url += "&%s=%s" % (add_prefix(k), v)
+        print(url)
         r = self.session.get(url)
         # TODO parse text, check return code
         return r.text
@@ -337,7 +403,7 @@ class DahuaCamera:
     def set_current_time(self, new_datetime=None):
         if new_datetime is None:
             new_datetime = datetime.datetime.now()
-        s = datetime.datetime.stftime(s, "%Y-%m-%d %H:%M:%S")
+        s = datetime.datetime.strftime(new_datetime, "%Y-%m-%d %H:%M:%S")
         qs = urllib.parse.quote(s)
         url = (
             "http://{ip}/cgi-bin/global.cgi?"

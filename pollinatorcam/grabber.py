@@ -190,6 +190,7 @@ class Grabber:
         # TODO configure camera
         # TODO turn OFF motion detection it slows snapshots
         # TODO setup snapshot framerate and destination
+        # TODO set datetime
         # set camera fps
         da = requests.auth.HTTPDigestAuth(
             os.environ['PCAM_USER'], os.environ['PCAM_PASSWORD'])
