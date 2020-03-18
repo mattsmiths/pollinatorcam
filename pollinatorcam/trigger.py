@@ -24,7 +24,12 @@ Duty cycle limit only during triggered period
     if hold off finished, restart recording
 """
 
+import logging
 import time
+
+import numpy
+
+from . import gstrecorder
 
 
 class MaskedDetection:
@@ -38,7 +43,11 @@ class MaskedDetection:
             self.mask = numpy.ones_like(labels)
         # TODO add filtering for false positives here
         # TODO add smoothing here
-        return numpy.any(numpy.logical_and(labels > threshold, self.mask))
+        md = numpy.logical_and(labels > self.threshold, self.mask)
+        return numpy.any(md)
+
+    def __call__(self, labels):
+        return self.set_labels(labels)
     
 
 class Trigger:
@@ -51,10 +60,6 @@ class Trigger:
 
         self.times = {}
 
-        # TODO pull out recorder for easier testing
-        #self.recorder_index = -1
-        #self.recorder = None 
-        #self.next_recorder()
         self.active = None
 
     def activate(self, t):
@@ -64,22 +69,10 @@ class Trigger:
     def deactivate(self, t):
         self.active = False
 
-    #def next_recorder(self):
-    #    if self.recorder is not None:
-    #        self.recorder.stop_recording()
-    #    self.recorder_index += 1
-    #    self.recorder = gstrecorder.Recorder(
-    #        ip=self.ip, filename='test%05i.mp4' % self.recorder_index)
-    #    self.recorder.start()
-
     def rising_edge(self):
         self.times['rising'] = time.monotonic()
         if not self.active:
             self.activate(self.times['rising'])
-        # start recording
-        #if not self.recorder.recording:
-        #    self.recorder.start_recording()
-        #    self.times['start'] = self.times['rising']
 
     def falling_edge(self):
         self.times['falling'] = time.monotonic()
@@ -87,33 +80,22 @@ class Trigger:
             del self.times['hold_off']
         if not self.active:
             self.activate(self.times['falling'])
-        # if not recording, start
-        #if not self.recorder.recording:
-        #    self.recorder.start_recording()
-        #    self.times['start'] = self.times['falling']
-        #self._falling_edge_time = time.monotonic()
 
     def high(self):
         t = time.monotonic()
         if 'rising' not in self.times:
             self.rising_edge()
         # check duty cycle
-        #if self.recorder.recording:
         if self.active:
             if t - self.times['start'] >= self.min_time:
-                self.deactivate(t)
                 # stop recording, go into hold off
-                #self.next_recorder()
+                self.deactivate(t)
                 self.times['hold_off'] = t + 1. / self.duty_cycle * self.min_time
-                #self.times['hold_off'] = t + (1. - self.duty_cycle) * self.min_time
         else:
             if 'hold_off' in self.times and t >= self.times['hold_off']:
                 self.activate(t)
-                #self.recorder.start_recording()
-                #self.times['start'] = t
 
     def low(self):
-        #if self.recorder.recording:
         if self.active:
             t = time.monotonic()
             if 'falling' not in self.times:
@@ -121,7 +103,6 @@ class Trigger:
             # stop after post_record
             if t - self.times['falling'] >= self.post_time:
                 self.deactivate(t)
-                #self.next_recorder()
 
     def set_trigger(self, trigger):
         if self.triggered:
@@ -136,9 +117,13 @@ class Trigger:
                 self.low()
         self.triggered = trigger
 
+    def __call__(self, trigger):
+        return self.set_trigger(trigger)
 
-class TriggeredRecording:
-    def __init__(self, ip, duty_cycle, post_time, min_time):
+
+class TriggeredRecording(Trigger):
+    def __init__(self, ip, duty_cycle, post_time, min_time, filename_gen):
+        self.filename_gen = filename_gen
         super(TriggeredRecording, self).__init__(
             duty_cycle, post_time, min_time)
 
@@ -152,9 +137,9 @@ class TriggeredRecording:
         if self.recorder is not None:
             self.recorder.stop_recording()
         self.recorder_index += 1
-        # TODO filename
-        self.recorder = gstrecorder.Recorder(
-            ip=self.ip, filename='test%05i.mp4' % self.recorder_index)
+        fn = self.filename_gen(self.recorder_index)
+        logging.info("Buffering to %s", fn)
+        self.recorder = gstrecorder.Recorder(ip=self.ip, filename=fn)
         self.recorder.start()
 
     def activate(self, t):

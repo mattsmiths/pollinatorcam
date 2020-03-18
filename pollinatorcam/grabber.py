@@ -8,6 +8,7 @@ Grab images from camera
 """
 
 import argparse
+import datetime
 import io
 import logging
 import os
@@ -23,6 +24,10 @@ import tfliteserve
 
 from . import dahuacam
 from . import gstrecorder
+from . import trigger
+
+
+data_dir = '/mnt/data/'
 
 
 class CaptureThread(threading.Thread):
@@ -94,54 +99,50 @@ class CaptureThread(threading.Thread):
 
 class Grabber:
     def __init__(self, ip, name=None, retry=False):
-        self.dc = dahuacam.DahuaCamera(ip)
+        self.cam = dahuacam.DahuaCamera(ip)
         # TODO do this every startup?
-        self.dc.set_current_time()
+        self.cam.set_current_time()
         if name is None:
-            name = self.dc.get_name()
+            name = self.cam.get_name()
         self.ip = ip
 
         # TODO configure camera: see dahuacam for needed updates
-        #dahuacam.initial_configuration(self.dc, reboot=False)
+        #dahuacam.initial_configuration(self.cam, reboot=False)
 
         logging.info("Starting capture thread: %s", self.ip)
-        #self.snapshot_thread = SnapshotThread(ip=ip, retry=retry)
-        #self.snapshot_thread.start()
         self.ip = ip
         self.retry = retry
-        self.capture_thread = CaptureThread(cam=self.dc, retry=self.retry)
+        self.capture_thread = CaptureThread(cam=self.cam, retry=self.retry)
         self.capture_thread.start()
+        self.crop = None
 
         self.name = name
         logging.info("Connecting to tfliteserve as %s", self.name)
         self.client = tfliteserve.Client(self.name)
 
-        # TODO update: recorder is part of triggerer now
-        # start initial recorder
-        self.recorder_index = -1
-        self.recorder = None
-        self.next_recorder()
+        self.vdir = os.path.join(data_dir, 'videos', self.name)
+        if not os.path.exists(self.vdir):
+            os.makedirs(self.vdir)
+
+        def fng(i):
+            dt = datetime.datetime.now()
+            d = os.path.join(self.vdir, dt.strftime('%y%m%d'))
+            if not os.path.exists(d):
+                os.makedirs(d)
+            return os.path.join(
+                d,
+                '%s_%s_%i.avi' % (dt.strftime('%H%M%S'), self.name, i))
+
+        self.trigger = trigger.TriggeredRecording(
+            self.cam.ip, 0.1, 1.0, 10.0, fng)
+
+        # TODO set initial mask from taxonomy
+        self.detector = trigger.MaskedDetection(0.5)
 
         self.analyze_every_n = 1
         self.frame_count = -1
 
-        self.last_frame = time.monotonic()
-
-        self.saving = False
-        self.hold_on = 1.0
-        self._last_untrigger = None
-        self.crop = None
-
-    def next_recorder(self):
-        if self.recorder is not None:
-            self.recorder.stop_recording()
-        self.recorder_index += 1
-        self.recorder = gstrecorder.Recorder(
-            ip=self.ip, filename='test%05i.mp4' % self.recorder_index)
-        self.recorder.start()
-
     def __del__(self):
-        #self.snapshot_thread.stop()
         self.capture_thread.stop()
 
     def build_crop(self, example_image):
@@ -160,22 +161,27 @@ class Grabber:
             r = w
 
         def cf(image):
+            # TODO use client input buffer size
             return cv2.resize(image[t:b, l:r], (224, 224), interpolation=cv2.INTER_AREA)
         
         return cf
 
     def analyze_frame(self, im):
+        print("Analyze: %s" % time.monotonic())
         cim = self.crop(im)
         #print("Image[%s]: (%s, %s)" % (cim.shape, cim.min(), cim.max()))
         o = self.client.run(cim)
-        if numpy.any(o) > 0.5:  # TODO parse results
-            li = o.argmax()
-            print("Detected:", self.client.buffers.meta['labels'][li])
-            #return True
-        return False
+        # TODO save results
+        t = self.detector(o)
+        if t:
+            print("Triggered on %s" % self.client.buffers.meta['labels'][o.argmax()])
+        else:
+            print("Untriggered")
+        # if t:  # TODO save info about detection?
+        self.trigger(t)
+        # TODO save info about trigger state
     
     def update(self):
-        #r, im, ts = self.snapshot_thread.next_snapshot()
         try:
             # TODO wait frame period * 1.5
             r, im, ts = self.capture_thread.next_image(timeout=1.5)
@@ -183,7 +189,7 @@ class Grabber:
             # next image timed out
             if not self.capture_thread.is_alive():
                 logging.info("Restarting capture thread")
-                self.capture_thread = CaptureThread(cam=self.dc, retry=self.retry)
+                self.capture_thread = CaptureThread(cam=self.cam, retry=self.retry)
                 self.capture_thread.start()
                 # TODO restart record also?
             else:
@@ -194,7 +200,6 @@ class Grabber:
             logging.warning("Image error: %s", im)
             return False
 
-        self.last_frame = ts
         self.frame_count += 1
         #print("Acquired:", self.frame_count)
 
@@ -204,35 +209,7 @@ class Grabber:
 
         # if frame should be checked...
         if self.frame_count % self.analyze_every_n == 0:
-            # analyze frame
-            triggered = self.analyze_frame(im)
-            #print("Trigger:", triggered)
-
-            if triggered and not self.saving:
-                # start saving
-                # TODO associate timestamp, results, and recorder filename
-                self.recorder.start_recording()
-                self.saving = True
-                fn = '%s_%i.avi' % (self.name, self.frame_count)
-                h, w = im.shape[:2]
-                logging.info("Started saving to %s", fn)
-                self._last_untrigger = None
-                self.hold_on = 1.0
-            elif not triggered and self.saving:
-                t = time.time()
-                if self._last_untrigger is not None:
-                    self.hold_on -= t - self._last_untrigger
-                self._last_untrigger = t
-                if self.hold_on < 0.0:
-                    # TODO continue saving for 1 more second?
-                    # stop saving
-                    self.recorder.stop_recording()
-                    self.saving = False
-                    # advance recorder to next filename
-                    self.next_recorder()
-                    logging.info("Stopped saving at frame %i", self.frame_count)
-                    self.hold_on = 1.0
-                    self._last_untrigger = None
+            self.analyze_frame(im)
 
     def run(self):
         while True:
