@@ -12,6 +12,7 @@ import datetime
 import io
 import logging
 import os
+import pickle
 import threading
 import time
 
@@ -27,6 +28,7 @@ from . import gstrecorder
 from . import trigger
 
 
+# TODO include this in config
 data_dir = '/mnt/data/'
 
 
@@ -99,6 +101,7 @@ class CaptureThread(threading.Thread):
 
 class Grabber:
     def __init__(self, ip, name=None, retry=False):
+        # TODO use general config here
         self.cam = dahuacam.DahuaCamera(ip)
         # TODO do this every startup?
         self.cam.set_current_time()
@@ -167,19 +170,27 @@ class Grabber:
         return cf
 
     def analyze_frame(self, im):
-        print("Analyze: %s" % time.monotonic())
+        dt = datetime.datetime.now()
+        ts = dt.strftime('%y%m%d_%H%M%S_%f')
+
+        print("Analyze: %s" % ts)
         cim = self.crop(im)
-        #print("Image[%s]: (%s, %s)" % (cim.shape, cim.min(), cim.max()))
         o = self.client.run(cim)
-        # TODO save results
         t = self.detector(o)
         if t:
             print("Triggered on %s" % self.client.buffers.meta['labels'][o.argmax()])
-        else:
-            print("Untriggered")
-        # if t:  # TODO save info about detection?
         self.trigger(t)
-        # TODO save info about trigger state
+
+        r = {
+            'labels': o,
+            'detection': t,
+        }
+        d = os.path.join(data_dir, 'detection', self.name, dt.strftime('%y%m%d'))
+        if not os.path.exists(d):
+            os.makedirs(d)
+        fn = os.path.join(d, '%s_%s.p' % (ts, self.name))
+        with open(fn, 'wb') as f:
+            pickle.dump(r, f)
     
     def update(self):
         try:
