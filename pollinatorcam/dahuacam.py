@@ -27,6 +27,9 @@ def build_camera_url(
 
 
 def initial_configuration(c, reboot=True):
+    # TODO combine with snap config
+    # TODO pull out a 'config' structure that contains settings
+    # TODO add error checking
     config_result = {}
     if c.password != os.environ['PCAM_PASSWORD']:
         r = c.set_password(os.environ['PCAM_PASSWORD'])
@@ -70,7 +73,7 @@ def initial_configuration(c, reboot=True):
         ('Compression', 'H.265'),
         ('CustomResolutionName', '2592x1944'),
         ('FPS', '5'),
-        ('GOP', '1'),
+        ('GOP', '1'),  # TODO needed for valve, does this make larger videos?
         ('Height', '1944'),
         ('Pack', 'DHAV'),
         ('Priority', '0'),
@@ -102,8 +105,11 @@ def initial_configuration(c, reboot=True):
     r = c.set_config(config)
     config_result['widget'] = r
 
-    # TODO name? General.MachineName (use mac address?)
-    # Network.eth0.PhysicalAddress
+    # set name to mac address
+    mac = c.get_config('Network.eth0.PhysicalAddress').strip().split('=')[1]
+    name = ''.join(mac.split(':'))
+    r = c.set_config([('General.MachineName', name),])
+    config_result['name'] = r
 
     # TODO enable ftp
     # TODO snapshot schedule
@@ -172,6 +178,10 @@ def set_snap_config(c, nas, fps):
     config_result['nas'] = r
 
     return config_result
+
+
+class DahuaCameraError(Exception):
+    pass
 
 
 class DahuaCamera:
@@ -435,3 +445,9 @@ class DahuaCamera:
                 ip=self.ip))
         r = self.session.get(url)
         return r.text
+
+    def get_name(self):
+        r = self.get_config('General.MachineName')
+        if 'Error' in r or '=' not in r:
+            raise DahuaCameraError(r.strip())
+        return r.strip().split('=')[1]

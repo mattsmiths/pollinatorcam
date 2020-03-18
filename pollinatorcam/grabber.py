@@ -9,6 +9,7 @@ Grab images from camera
 
 import argparse
 import io
+import logging
 import os
 import threading
 import time
@@ -20,12 +21,13 @@ import requests
 
 import tfliteserve
 
+from . import dahuacam
 from . import gstrecorder
 
 
 class CaptureThread(threading.Thread):
     def __init__(self, *args, **kwargs):
-        ip = kwargs.pop('ip')
+        self.cam = kwargs.pop('cam')
         if 'retry' in kwargs:
             self.retry = kwargs.pop('retry')
         else:
@@ -33,8 +35,8 @@ class CaptureThread(threading.Thread):
         kwargs['daemon'] = kwargs.get('daemon', True)
         super(CaptureThread, self).__init__(*args, **kwargs)
 
-        self.url = build_camera_url(ip, channel=1, subtype=1)
-        self.cap = cv2.VideoCapture(self.url)
+        self.url = self.cam.rtsp_url(channel=1, subtype=1)
+        self._start_cap()
 
         self.error = None
         self.keep_running = True
@@ -42,6 +44,11 @@ class CaptureThread(threading.Thread):
         self.timestamp = None
         self.image = None
         self.image_ready = threading.Condition() 
+
+    def _start_cap(self):
+        if hasattr(self, 'cap'):
+            del self.cap
+        self.cap = cv2.VideoCapture(self.url)
 
     def _read_frame(self):
         r, im = self.cap.read()
@@ -65,9 +72,8 @@ class CaptureThread(threading.Thread):
                     self.image_ready.notify()
                 if not self.retry:
                     break
-                print("Restarting capture")
-                del self.cap
-                self.cap = cv2.VideoCapture(self.url)
+                logging.info("Restarting capture: %s", self.url)
+                self._start_cap()
 
     def next_image(self, timeout=None):
         with self.image_ready:
@@ -86,162 +92,31 @@ class CaptureThread(threading.Thread):
         self.stop()
 
 
-class SnapshotThread(threading.Thread):
-    def __init__(self, *args, **kwargs):
-        ip = kwargs.pop('ip')
-        if 'retry' in kwargs:
-            self.retry = kwargs.pop('retry')
-        else:
-            self.retry = False
-        kwargs['daemon'] = kwargs.get('daemon', True)
-        super(SnapshotThread, self).__init__(*args, **kwargs)
-
-        # authentication
-        self.da = requests.auth.HTTPDigestAuth(
-            os.environ['PCAM_USER'], os.environ['PCAM_PASSWORD'])
-        self.url = "http://{user}:{password}@{ip}/cgi-bin/snapshot.cgi".format(
-            user=os.environ['PCAM_USER'],
-            password=os.environ['PCAM_PASSWORD'],
-            ip=ip)
-        self.timestamp = None
-        self.snapshot = None
-        self.error = None
-        self.keep_requesting = True
-
-        #self.lock = threading.Lock()
-        self.snap_ready = threading.Condition() 
-
-    def _request_snapshot(self):
-        r = requests.get(self.url, auth=self.da)
-        #with self.lock:
-        with self.snap_ready:
-            self.timestamp = time.time()
-            if r.status_code != 200:
-                self.error = r
-                self.snapshot = None
-            else:
-                self.snapshot = numpy.array(PIL.Image.open(io.BytesIO(r.content)))
-                self.error = None
-            self.snap_ready.notify()
-
-    def run(self):
-        while self.keep_requesting:
-            try:
-                self._request_snapshot()
-            except Exception as e:
-                with self.snap_ready:
-                    self.error = e
-                    self.timestamp = time.time()
-                    self.snapshot = None
-                    self.snap_ready.notify()
-                if not self.retry:
-                    break
-
-    def next_snapshot(self, timeout=None):
-        #with self.lock:
-        with self.snap_ready:
-            if not self.snap_ready.wait(timeout=timeout):
-                raise RuntimeError("No new snapshot within timeout")
-            if self.error is None:
-                return True, self.snapshot, self.timestamp
-            return False, self.error, self.timestamp
-
-    def stop(self):
-        if self.is_alive():
-            self.keep_requesting = False
-            self.join()
-
-    def __del__(self):
-        self.stop()
-
-
-# TODO use dahuacam
-def build_camera_url(
-        ip, user=None, password=None, channel=1, subtype=0):
-    if user is None:
-        user = os.environ['PCAM_USER']
-    if password is None:
-        password = os.environ['PCAM_PASSWORD']
-    return (
-        "rtsp://{user}:{password}@{ip}:554"
-        "/cam/realmonitor?channel={channel}&subtype={subtype}".format(
-            user=user,
-            password=password,
-            ip=ip,
-            channel=channel,
-            subtype=subtype))
-
-
 class Grabber:
     def __init__(self, ip, name=None, retry=False):
-        """
-        Make (and start) snapshot thread
-        On new snapshots, acquire
-        """
+        self.dc = dahuacam.DahuaCamera(ip)
+        # TODO do this every startup?
+        self.dc.set_current_time()
         if name is None:
-            name = ip
+            name = self.dc.get_name()
         self.ip = ip
 
+        # TODO configure camera: see dahuacam for needed updates
+        #dahuacam.initial_configuration(self.dc, reboot=False)
 
-        self.url = build_camera_url(ip)
-
-        self.fps = 5
-
-        # TODO configure camera
-        # TODO turn OFF motion detection it slows snapshots
-        # TODO setup snapshot framerate and destination
-        # TODO set datetime
-        # set camera fps
-        da = requests.auth.HTTPDigestAuth(
-            os.environ['PCAM_USER'], os.environ['PCAM_PASSWORD'])
-        burl = "http://{user}:{password}@{ip}".format(
-            user=os.environ['PCAM_USER'],
-            password=os.environ['PCAM_PASSWORD'],
-            ip=ip)
-        r = requests.get(
-            burl +
-            '/cgi-bin/configManager.cgi?action=setConfig&Encode[0]'
-            '.MainFormat[0].Video.FPS={fps}'.format(fps=self.fps),
-            auth=da)
-        if r.status_code != 200:
-            raise ValueError("Failed to set framerate to %s: %s" % (fps, r))
-        # set gop
-        # TODO gop must be HIGH to allow valve turn on at any time
-        # is there a way around this that doesn't inflate the video
-        # size?
-        gop = 1
-        r = requests.get(
-            burl +
-            '/cgi-bin/configManager.cgi?action=setConfig&Encode[0]'
-            '.MainFormat[0].Video.GOP={gop}'.format(gop=gop),
-            auth=da)
-        if r.status_code != 200:
-            raise ValueError("Failed to set gop to %s: %s" % (gop, r))
-
-        # set extra format fps
-        efps = 1
-        r = requests.get(
-            burl +
-            '/cgi-bin/configManager.cgi?action=setConfig&Encode[0]'
-            '.ExtraFormat[0].Video.FPS={efps}'.format(efps=efps),
-            auth=da)
-        if r.status_code != 200:
-            raise ValueError("Failed to set sub framerate to %s: %s" % (fps, r))
-
-
-
-        print("Creating capture thread")
+        logging.info("Starting capture thread: %s", self.ip)
         #self.snapshot_thread = SnapshotThread(ip=ip, retry=retry)
         #self.snapshot_thread.start()
         self.ip = ip
         self.retry = retry
-        self.capture_thread = CaptureThread(ip=self.ip, retry=self.retry)
+        self.capture_thread = CaptureThread(cam=self.dc, retry=self.retry)
         self.capture_thread.start()
 
         self.name = name
-        print("Connecting to tfliteserve")
+        logging.info("Connecting to tfliteserve as %s", self.name)
         self.client = tfliteserve.Client(self.name)
 
+        # TODO update: recorder is part of triggerer now
         # start initial recorder
         self.recorder_index = -1
         self.recorder = None
@@ -256,7 +131,6 @@ class Grabber:
         self.hold_on = 1.0
         self._last_untrigger = None
         self.crop = None
-        print("Done __init__")
 
     def next_recorder(self):
         if self.recorder is not None:
@@ -292,7 +166,7 @@ class Grabber:
 
     def analyze_frame(self, im):
         cim = self.crop(im)
-        print("Image[%s]: (%s, %s)" % (cim.shape, cim.min(), cim.max()))
+        #print("Image[%s]: (%s, %s)" % (cim.shape, cim.min(), cim.max()))
         o = self.client.run(cim)
         if numpy.any(o) > 0.5:  # TODO parse results
             li = o.argmax()
@@ -308,16 +182,16 @@ class Grabber:
         except RuntimeError as e:
             # next image timed out
             if not self.capture_thread.is_alive():
-                print("Restarting capture thread")
-                self.capture_thread = CaptureThread(ip=self.ip, retry=self.retry)
+                logging.info("Restarting capture thread")
+                self.capture_thread = CaptureThread(cam=self.dc, retry=self.retry)
                 self.capture_thread.start()
                 # TODO restart record also?
             else:
-                print("Frame grab timed out, waiting...")
+                logging.info("Frame grab timed out, waiting...")
             return
         if not r or im is None:  # error
             #raise Exception("Snapshot error: %s" % im)
-            print("Image error: %s" % im)
+            logging.warning("Image error: %s", im)
             return False
 
         self.last_frame = ts
@@ -331,9 +205,8 @@ class Grabber:
         # if frame should be checked...
         if self.frame_count % self.analyze_every_n == 0:
             # analyze frame
-            print("Analyzing frame")
             triggered = self.analyze_frame(im)
-            print("Trigger:", triggered)
+            #print("Trigger:", triggered)
 
             if triggered and not self.saving:
                 # start saving
@@ -342,7 +215,7 @@ class Grabber:
                 self.saving = True
                 fn = '%s_%i.avi' % (self.name, self.frame_count)
                 h, w = im.shape[:2]
-                print("Started saving to %s" % fn)
+                logging.info("Started saving to %s", fn)
                 self._last_untrigger = None
                 self.hold_on = 1.0
             elif not triggered and self.saving:
@@ -357,11 +230,9 @@ class Grabber:
                     self.saving = False
                     # advance recorder to next filename
                     self.next_recorder()
-                    print("Stopped saving at frame %i" % self.frame_count)
+                    logging.info("Stopped saving at frame %i", self.frame_count)
                     self.hold_on = 1.0
                     self._last_untrigger = None
-
-        print("Done")
 
     def run(self):
         while True:
