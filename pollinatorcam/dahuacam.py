@@ -122,6 +122,22 @@ def initial_configuration(c, reboot=True):
     return config_result
 
 
+def set_record_config(c, enable):
+    prefix = 'Record[0]'
+    config = [
+        ('HolidayEnable', 'true'),
+        ('PreRecord', '0'),
+    ]
+    key_bs = 'TimeSection[{}][0]'
+    value_bs = '{}%2000:00:00-23:59:59'
+    for ts in range(8):
+        k = key_bs.format(ts)
+        v = value_bs.format(int(enable))
+        config.append((k, v))
+    r = c.set_config(config, prefix=prefix)
+    return r
+
+
 def set_snap_config(c, nas, fps):
     for k in ('ip', 'user', 'password'):
         assert k in nas, "nas config missing %s" % k
@@ -215,6 +231,13 @@ class DahuaCamera:
                 ip=self.ip, channel=channel))
         r = self.session.get(url)
         # TODO parse text, check return code
+        return r.text
+
+    def get_record_caps(self):
+        url = (
+            "http://{ip}/cgi-bin/recordManager.cgi?"
+            "action=getCaps".format(ip=self.ip))
+        r = self.session.get(url)
         return r.text
 
     # getConfig = get_input_options, get_config_caps, get_encode_config
