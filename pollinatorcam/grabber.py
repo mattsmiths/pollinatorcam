@@ -25,6 +25,7 @@ import tfliteserve
 
 from . import dahuacam
 from . import gstrecorder
+from . import logger
 from . import trigger
 
 
@@ -145,6 +146,9 @@ class Grabber:
         self.analyze_every_n = 1
         self.frame_count = -1
 
+        self.analysis_logger = logger.AnalysisResultsSaver(
+            os.path.join(data_dir, 'detection', self.name))
+
     def __del__(self):
         self.capture_thread.stop()
 
@@ -181,16 +185,20 @@ class Grabber:
             print("Triggered on %s" % self.client.buffers.meta['labels'][o.argmax()])
         self.trigger(t)
 
-        r = {
-            'labels': o,
-            'detection': t,
-        }
-        d = os.path.join(data_dir, 'detection', self.name, dt.strftime('%y%m%d'))
-        if not os.path.exists(d):
-            os.makedirs(d)
-        fn = os.path.join(d, '%s_%s.p' % (ts, self.name))
-        with open(fn, 'wb') as f:
-            pickle.dump(r, f)
+        #r = {
+        #    'labels': o,
+        #    'detection': t,
+        #}
+        self.analysis_logger.save(dt, {'labels': numpy.squeeze(o), 'detection': t})
+        #d = os.path.join(
+        #    data_dir, 'detection', self.name,
+        #    dt.strftime('%y%m%d'),
+        #    dt.strftime('%H'))
+        #if not os.path.exists(d):
+        #    os.makedirs(d)
+        #fn = os.path.join(d, '%s_%s.p' % (ts, self.name))
+        #with open(fn, 'wb') as f:
+        #    pickle.dump(r, f)
     
     def update(self):
         try:
