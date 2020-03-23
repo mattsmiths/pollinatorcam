@@ -138,6 +138,17 @@ def set_record_config(c, enable):
     return r
 
 
+def set_continuous_video():
+    # TODO RecordStoragePoint[0].TimingRecord.FTP=true
+    # TODO MediaGlobal.PacketLength (video length in minutes?)
+    # TODO Record[0]:
+    # - HolidayEnable=true
+    # - TimeSection[0-7][0]=1 00:00:00-23:59:59
+    # - Stream = 0? what is this setting?
+    # TODO nas config, fps, etc
+    pass
+
+
 def set_snap_config(c, nas, fps):
     for k in ('ip', 'user', 'password'):
         assert k in nas, "nas config missing %s" % k
@@ -147,6 +158,12 @@ def set_snap_config(c, nas, fps):
     # set current time
     r = c.set_current_time()
     config_result['time'] = r
+
+    # set storage location
+    # TODO RecordStoragePoint[0].TimingRecord.FTP=false
+    r = c.set_config([
+        ('RecordStoragePoint[0].TimingSnapShot.FTP', 'true'),])
+    config_result['storagepoint'] = r
 
     # Encode[0].SnapFormat[0]
     # - resolution 2592x1944

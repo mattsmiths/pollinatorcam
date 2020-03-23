@@ -39,11 +39,14 @@ class AnalysisResultsSaver:
             self.index = None
         else:
             self.file.create_dataset(
-                'labels', (self.n_records, len(record['labels'])), 'f8')
+                'labels', (self.n_records, len(record['labels'])), 'f8',
+                chunked=True)
             self.file.create_dataset(
-                'detections', (self.n_records,), 'bool')
+                'detections', (self.n_records,), 'bool',
+                chunked=True)
             self.file.create_dataset(
-                'times', (self.n_records,), 'f8')
+                'times', (self.n_records,), 'f8',
+                chunked=True)
             self.index = None
         return
 
