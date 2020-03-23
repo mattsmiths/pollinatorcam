@@ -29,7 +29,7 @@ class AnalysisResultsSaver:
             os.makedirs(d)
         # TODO better filename
         # TODO handle 'truncated file' by writing to a new file
-        fn = os.path.join(d, '%s.hdf5' % timestamp.hour)
+        fn = os.path.join(d, '%02i.hdf5' % timestamp.hour)
         self.file = h5py.File(fn, 'a')
         self.file.datetime = timestamp
         # check if datasets already exist
@@ -40,13 +40,13 @@ class AnalysisResultsSaver:
         else:
             self.file.create_dataset(
                 'labels', (self.n_records, len(record['labels'])), 'f8',
-                chunked=True)
+                chunks=True)
             self.file.create_dataset(
                 'detections', (self.n_records,), 'bool',
-                chunked=True)
+                chunks=True)
             self.file.create_dataset(
                 'times', (self.n_records,), 'f8',
-                chunked=True)
+                chunks=True)
             self.index = None
         return
 
