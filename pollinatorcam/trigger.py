@@ -41,10 +41,15 @@ class MaskedDetection:
     def set_labels(self, labels):
         if self.mask is None:
             #self.mask = numpy.ones_like(labels)
+
             # TODO hard coding insects here
+            #self.mask = numpy.zeros_like(labels)
+            #self.mask[0, 75:1067] = 1
+            #self.mask[0, 2291] = 1
+
+            # TODO hard coding birds here
             self.mask = numpy.zeros_like(labels)
-            self.mask[0, 75:1067] = 1
-            self.mask[0, 2291] = 1
+            self.mask[0, 1103:1589] = 1
         # TODO add filtering for false positives here
         # TODO add smoothing here
         md = numpy.logical_and(labels > self.threshold, self.mask)
