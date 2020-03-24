@@ -42,18 +42,20 @@ class MaskedDetection:
         if self.mask is None:
             #self.mask = numpy.ones_like(labels)
 
-            # TODO hard coding insects here
-            #self.mask = numpy.zeros_like(labels)
-            #self.mask[0, 75:1067] = 1
-            #self.mask[0, 2291] = 1
-
-            # TODO hard coding birds here
+            # TODO hard coding
             self.mask = numpy.zeros_like(labels)
-            self.mask[0, 1103:1589] = 1
+            #self.mask[0, 75:1067] = 1  # insects
+            #self.mask[0, 2291] = 1  # insects
+            self.mask[0, 1103:1589] = 1  # birds
+            self.mask[0, 1589:1638] = 1  # mammals
         # TODO add filtering for false positives here
         # TODO add smoothing here
         md = numpy.logical_and(labels > self.threshold, self.mask)
-        return numpy.any(md)
+        info = {
+            'masked_detection': md,
+            'indices': numpy.nonzero(numpy.squeeze(md))[0],
+        }
+        return numpy.any(md), info
 
     def __call__(self, labels):
         return self.set_labels(labels)

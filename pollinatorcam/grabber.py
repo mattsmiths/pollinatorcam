@@ -180,9 +180,17 @@ class Grabber:
         print("Analyze: %s" % ts)
         cim = self.crop(im)
         o = self.client.run(cim)
-        t = self.detector(o)
+        t, info = self.detector(o)
         if t:
-            print("Triggered on %s" % self.client.buffers.meta['labels'][o.argmax()])
+            detections = {}
+            lbls = self.client.buffers.meta['labels']
+            for i in info['indices']:
+                detections[str(lbls[i])] = o[0, i]
+            print("Triggered on:")
+            for k in sorted(detections, key=lambda k: detections[k])[:5]:
+                print("\t%s: %f" % (k, detections[k]))
+            if len(detections) > 5:
+                print("\t...%i detections total" % len(detections))
         self.trigger(t)
 
         #r = {
