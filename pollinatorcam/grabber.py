@@ -63,6 +63,8 @@ class CaptureThread(threading.Thread):
         if not r or im is None:
             raise Exception("Failed to capture: %s, %s" % (r, im))
         with self.image_ready:
+            #if self.timestamp is not None:
+            #    print("Frame dt:", time.time() - self.timestamp)
             self.timestamp = time.time()
             self.image = im
             self.error = None
@@ -101,7 +103,7 @@ class CaptureThread(threading.Thread):
 
 
 class Grabber:
-    def __init__(self, ip, name=None, retry=False):
+    def __init__(self, ip, name=None, retry=False, fake_detection=False):
         # TODO use general config here
         self.cam = dahuacam.DahuaCamera(ip)
         # TODO do this every startup?
@@ -116,6 +118,7 @@ class Grabber:
         logging.info("Starting capture thread: %s", self.ip)
         self.ip = ip
         self.retry = retry
+        self.fake_detection = fake_detection
         self.capture_thread = CaptureThread(cam=self.cam, retry=self.retry)
         self.capture_thread.start()
         self.crop = None
@@ -138,12 +141,12 @@ class Grabber:
                 '%s_%s_%i.avi' % (dt.strftime('%H%M%S'), self.name, i))
 
         self.trigger = trigger.TriggeredRecording(
-            self.cam.ip, 0.1, 1.0, 10.0, fng)
+            self.cam.ip, 0.1, 1.0, 3.0, 10.0, fng)
 
         # TODO set initial mask from taxonomy
         self.detector = trigger.MaskedDetection(0.5)
 
-        self.analyze_every_n = 1
+        self.analyze_every_n = 10
         self.frame_count = -1
 
         self.analysis_logger = logger.AnalysisResultsSaver(
@@ -178,35 +181,25 @@ class Grabber:
         ts = dt.strftime('%y%m%d_%H%M%S_%f')
 
         print("Analyze: %s" % ts)
-        cim = self.crop(im)
-        o = self.client.run(cim)
-        t, info = self.detector(o)
-        if t:
-            detections = {}
-            lbls = self.client.buffers.meta['labels']
-            for i in info['indices']:
-                detections[str(lbls[i])] = o[0, i]
-            print("Triggered on:")
-            for k in sorted(detections, key=lambda k: detections[k])[:5]:
-                print("\t%s: %f" % (k, detections[k]))
-            if len(detections) > 5:
-                print("\t...%i detections total" % len(detections))
+        if self.fake_detection:
+            print(im.mean())
+            t = im.mean() < 100
+        else:
+            cim = self.crop(im)
+            o = self.client.run(cim)
+            t, info = self.detector(o)
+            if t:
+                detections = {}
+                lbls = self.client.buffers.meta['labels']
+                for i in info['indices']:
+                    detections[str(lbls[i])] = o[0, i]
+                print("Triggered on:")
+                for k in sorted(detections, key=lambda k: detections[k])[:5]:
+                    print("\t%s: %f" % (k, detections[k]))
+                if len(detections) > 5:
+                    print("\t...%i detections total" % len(detections))
+            self.analysis_logger.save(dt, {'labels': numpy.squeeze(o), 'detection': t})
         self.trigger(t)
-
-        #r = {
-        #    'labels': o,
-        #    'detection': t,
-        #}
-        self.analysis_logger.save(dt, {'labels': numpy.squeeze(o), 'detection': t})
-        #d = os.path.join(
-        #    data_dir, 'detection', self.name,
-        #    dt.strftime('%y%m%d'),
-        #    dt.strftime('%H'))
-        #if not os.path.exists(d):
-        #    os.makedirs(d)
-        #fn = os.path.join(d, '%s_%s.p' % (ts, self.name))
-        #with open(fn, 'wb') as f:
-        #    pickle.dump(r, f)
     
     def update(self):
         try:
@@ -249,6 +242,9 @@ class Grabber:
 def cmdline_run():
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        '-f', '--fake', default=False, action='store_true',
+        help="fake client detection")
+    parser.add_argument(
         '-i', '--ip', type=str, required=True,
         help="camera ip address")
     parser.add_argument(
@@ -270,5 +266,5 @@ def cmdline_run():
     if args.user is not None:
         os.environ['PCAM_USER'] = args.user
 
-    g = Grabber(args.ip, args.name)
+    g = Grabber(args.ip, args.name, args.retry, args.fake)
     g.run()

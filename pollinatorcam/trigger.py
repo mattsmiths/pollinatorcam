@@ -63,10 +63,12 @@ class MaskedDetection:
 
 class Trigger:
     def __init__(
-            self, duty_cycle, post_time, min_time):
+            self, duty_cycle, post_time, min_time, max_time):
         self.duty_cycle = duty_cycle
         self.min_time = min_time
+        self.max_time = max_time
         self.post_time = post_time
+        self.total_time = max_time + post_time
         self.triggered = False
 
         self.times = {}
@@ -98,10 +100,10 @@ class Trigger:
             self.rising_edge()
         # check duty cycle
         if self.active:
-            if t - self.times['start'] >= self.min_time:
+            if t - self.times['start'] >= self.max_time:
                 # stop recording, go into hold off
                 self.deactivate(t)
-                self.times['hold_off'] = t + 1. / self.duty_cycle * self.min_time
+                self.times['hold_off'] = t + 1. / self.duty_cycle * self.total_time
         else:
             if 'hold_off' in self.times and t >= self.times['hold_off']:
                 self.activate(t)
@@ -111,8 +113,10 @@ class Trigger:
             t = time.monotonic()
             if 'falling' not in self.times:
                 self.falling_edge()
-            # stop after post_record
-            if t - self.times['falling'] >= self.post_time:
+            # stop after post_record and min_time
+            if (
+                    (t - self.times['falling'] >= self.post_time) and
+                    (t - self.times['start'] >= self.min_time)):
                 self.deactivate(t)
 
     def set_trigger(self, trigger):
@@ -133,10 +137,10 @@ class Trigger:
 
 
 class TriggeredRecording(Trigger):
-    def __init__(self, ip, duty_cycle, post_time, min_time, filename_gen):
+    def __init__(self, ip, duty_cycle, post_time, min_time, max_time, filename_gen):
         self.filename_gen = filename_gen
         super(TriggeredRecording, self).__init__(
-            duty_cycle, post_time, min_time)
+            duty_cycle, post_time, min_time, max_time)
 
         self.ip = ip
         # TODO pre record time
@@ -146,10 +150,12 @@ class TriggeredRecording(Trigger):
 
     def next_recorder(self):
         if self.recorder is not None:
+            print("~~~ Stop recording ~~~")
             self.recorder.stop_recording()
         self.recorder_index += 1
         fn = self.filename_gen(self.recorder_index)
         logging.info("Buffering to %s", fn)
+        print("~~~ Buffering to %s ~~~" % fn)
         self.recorder = gstrecorder.Recorder(ip=self.ip, filename=fn)
         self.recorder.start()
 
@@ -158,16 +164,18 @@ class TriggeredRecording(Trigger):
         if self.recorder.recording:
             self.next_recorder()
         # TODO log filename, time
+        print("~~~ Started recording ~~~")
         self.recorder.start_recording()
 
     def deactivate(self, t):
         super(TriggeredRecording, self).deactivate(t)
+        print("~~~ Deactivate ~~~")
         self.next_recorder()
 
 
 def test():
 
-    def run_triggerer(trig, N, ts_func): 
+    def run_trigger(trig, N, ts_func, tick=0.001): 
         # run trigger for N seconds, monitor on/off times
         st = time.monotonic()
         stats = {
@@ -181,8 +189,8 @@ def test():
         s = None
         last_state_change_time = None
         while t - st <= 1.0:
-            trig.set_trigger(ts_func(t))
             dt = t - st
+            trig.set_trigger(ts_func(dt))
             if s is not None:
                 if s and not trig.active:  # trigger deactivated
                     stats['on_time'] += (
@@ -201,7 +209,7 @@ def test():
                     stats['off_times'].append(dt)
                 last_state_change_time = t
             s = trig.active
-            time.sleep(0.001)
+            time.sleep(tick)
             t = time.monotonic()
 
         # add last period
@@ -217,16 +225,28 @@ def test():
     N = 1.0
     duty = 0.01
     post_time = 0.001
-    min_time = 0.01
+    min_time = 0.005
+    max_time = 0.01
 
-    acceptable_error = 0.01
+    acceptable_duty_error = 0.01
 
     # test all on
-    trig = Triggerer(duty, post_time, min_time)
-    stats = run_triggerer(trig, N, lambda t: True)
-    assert abs(stats['duty'] - duty) / duty < acceptable_error
+    trig = Trigger(duty, post_time, min_time, max_time)
+    stats = run_trigger(trig, N, lambda dt: True)
+    assert abs(stats['duty'] - duty) < acceptable_duty_error
 
     # test all off
-    trig = Triggerer(duty, post_time, min_time)
-    stats = run_triggerer(trig, N, lambda t: False)
-    assert stats['duty'] < acceptable_error
+    trig = Trigger(duty, post_time, min_time, max_time)
+    stats = run_trigger(trig, N, lambda dt: False)
+    assert stats['duty'] < acceptable_duty_error
+
+    # test min time
+    N = 0.015
+    trig = Trigger(duty, post_time, min_time, max_time)
+    stats = run_trigger(trig, N, lambda dt: dt < 0.002, tick=0.0001)
+    assert abs(stats['on_time'] - min_time) < 0.005
+
+    # test max time
+    trig = Trigger(duty, post_time, min_time, max_time)
+    stats = run_trigger(trig, N, lambda dt: True, tick=0.0001)
+    assert abs(stats['on_time'] - max_time) < 0.005

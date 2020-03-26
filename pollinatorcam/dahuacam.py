@@ -43,12 +43,12 @@ def initial_configuration(c, reboot=True):
     prefix = 'Encode[0].ExtraFormat[0].Video'
     config = [
         ('resolution', '352x240'),
-        ('BitRate', '19'),
-        ('BitRateControl', 'CBR'),
+        ('BitRate', '128'),
+        ('BitRateControl', 'VBR'),
         ('Compression', 'H.265'),
         ('CustomResolutionName', 'CIF'),
-        ('FPS', '1'),
-        ('GOP', '30'),
+        ('FPS', '10'),
+        ('GOP', '20'),
         ('Height', '240'),
         ('Pack', 'DHAV'),
         ('Priority', '0'),
@@ -66,14 +66,18 @@ def initial_configuration(c, reboot=True):
 
     # main format
     prefix = 'Encode[0].MainFormat[0].Video'
+    # GOP of 1 makes 'blocky' videos
+    # GOP != 1 makes artifact full videos (with valve at front of pipeline)
+    # testing GOP == 5 with valve at end
     config = [
         ('resolution', '2592x1944'),
-        ('BitRate', '2048'),
-        ('BitRateControl', 'CBR'),
+        ('BitRate', '4096'),
+        ('BitRateControl', 'VBR'),
         ('Compression', 'H.265'),
         ('CustomResolutionName', '2592x1944'),
         ('FPS', '5'),
-        ('GOP', '1'),  # TODO needed for valve, does this make larger videos?
+        #('GOP', '1'),  # TODO needed for valve, does this make larger videos?
+        ('GOP', '5'),  # TODO needed for valve, does this make larger videos?
         ('Height', '1944'),
         ('Pack', 'DHAV'),
         ('Priority', '0'),

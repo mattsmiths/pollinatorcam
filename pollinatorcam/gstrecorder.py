@@ -11,15 +11,32 @@ from gi.repository import Gst, GLib, GObject
 
 url_string = "rtsp://{user}:{password}@{ip}:554/cam/realmonitor?channel=1&subtype=0"
 
-default_pre_record_time = 1000000000
+#default_pre_record_time = 1000000000
+default_pre_record_time = 1000
+#cmd_string = (
+#    'rtspsrc location="{url}" !'
+#    'queue min-threshold-time={pre_record_time} !'
+#    'valve name=valve !'
+#    'rtph265depay !'
+#    'h265parse !'
+#    'mp4mux !'
+#    'filesink location={filename}')
+
 cmd_string = (
-    'rtspsrc location="{url}" !'
-    'queue min-threshold-time={pre_record_time} !'
+    'rtspsrc location="{url}" latency={pre_record_time} !'
     'valve name=valve !'
     'rtph265depay !'
     'h265parse !'
     'mp4mux !'
     'filesink location={filename}')
+
+#cmd_string = (
+#    'rtspsrc location="{url}" latency={pre_record_time} !'
+#    'rtph265depay !'
+#    'h265parse !'
+#    'mp4mux !'
+#    'valve name=valve !'
+#    'filesink location={filename}')
 
 
 class Recorder(threading.Thread):
@@ -56,11 +73,8 @@ class Recorder(threading.Thread):
         #self.sink = self.pipeline.get_child_by_name("sink")
         #self.sink.set_property('location', filename)
 
-        # TODO release bus on close
         self.bus = self.pipeline.get_bus()
-        # TODO remove signal watch on close
         self.bus.add_signal_watch()
-        # TODO store connect result to disconnect on close
         self._on_message_cb = self.bus.connect("message", self.on_message)
 
         self.start_time = None
@@ -114,35 +128,40 @@ class Recorder(threading.Thread):
 
 
 def test_recorder(ip='192.168.0.4'):
-    # create recorder instance
-    r = Recorder(filename='test_file.mp4', ip=ip)
-    # start running (begins filling circular buffer)
-    r.start()
-    time.sleep(1)  # wait a bit
+    class Ticker:
+        def tick(self):
+            self.t0 = time.monotonic()
 
-    # start actually recording (frames will be delayed by buffer)
-    r.start_recording()
-    time.sleep(3)
-    # stop recording and join started thread
-    r.stop_recording(and_join=False)
-    # can the instance be re-used
+        def tock(self):
+            self.dt = time.monotonic() - self.t0
+            return self.dt
 
-    t0 = time.monotonic()
-    r.join()
-    t1 = time.monotonic()
-    print("Joining took: %s" % (t1 - t0))
-    time.sleep(2)
-    r = Recorder(filename='test_file2.mp4', ip=ip)
-    r.start()
-    time.sleep(1)
-    r.start_recording()
-    time.sleep(3)
-    r.stop_recording(and_join=False)
-    t0 = time.monotonic()
-    r.join()
-    t1 = time.monotonic()
-    print("Joining took: %s" % (t1 - t0))
-    #loop.quit()
+    t = Ticker()
+    for fn in ('test_file.mp4', 'test_file2.mp4'):
+        # create recorder instance
+        r = Recorder(filename=fn, ip=ip)
+        # start running (begins filling circular buffer)
+        r.start()
+        time.sleep(1)  # wait a bit
+
+        # start actually recording (frames will be delayed by buffer)
+        t.tick()
+        r.start_recording()
+        t.tock()
+        print("Start recording took", t.dt)
+
+        time.sleep(3)
+        # stop recording and join started thread
+        t.tick()
+        r.stop_recording(and_join=False)
+        t.tock()
+        print("Stop recording took", t.dt)
+
+        t.tick()
+        r.join()
+        t.tock()
+        print("Joining took", t.dt)
+        time.sleep(2)
 
 
 def test_for_open_files(ip='192.168.0.103'):
@@ -152,23 +171,21 @@ def test_for_open_files(ip='192.168.0.103'):
         subprocess.check_output(
             ['lsof', '-p', str(pid)]).decode('ascii').splitlines())
     tnof = None
-    for index in range(100):
+    for index in range(10):
         fn = '%04i.mp4' % index
         print("Index: %i, fn: %s" % (index, fn))
         r = Recorder(filename=fn, ip=ip, pre_record_time=1000)
         print("\tStarting")
         r.start()
-        time.sleep(1.0)
-        r.start_recording()
-        print("\tRecording...")
-        #time.sleep(10.0)
-        time.sleep(1.0)
-        print("\tStopping...")
-        #r.stop_recording(and_join=False)
-        r.stop_recording()
         #time.sleep(1.0)
-        #print("\tJoining...")
-        #r.join()
+        r.start_recording()
+
+        print("\tRecording...")
+        time.sleep(2.0)
+
+        print("\tStopping...")
+        r.stop_recording()
+
         # print number of open files
         nof = get_open_files()
         if tnof is None:
@@ -176,7 +193,7 @@ def test_for_open_files(ip='192.168.0.103'):
         print("\tDone, open Files: %i" % (nof, ))
         if nof != tnof:
             raise Exception("File open leak")
-        time.sleep(1.0)
+        #time.sleep(1.0)
 
 
 if __name__ == '__main__':
@@ -184,4 +201,4 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         ip = sys.argv[1]
     #test_recorder(ip)
-    test_for_open_files()
+    test_for_open_files(ip)
