@@ -137,40 +137,64 @@ class Trigger:
 
 
 class TriggeredRecording(Trigger):
-    def __init__(self, ip, duty_cycle, post_time, min_time, max_time, filename_gen):
+    def __init__(self, url, duty_cycle, post_time, min_time, max_time, filename_gen):
         self.filename_gen = filename_gen
         super(TriggeredRecording, self).__init__(
             duty_cycle, post_time, min_time, max_time)
 
-        self.ip = ip
+        #self.ip = ip
+        self.url = url
         # TODO pre record time
-        self.recorder_index = -1
-        self.recorder = None
-        self.next_recorder()
-
-    def next_recorder(self):
-        if self.recorder is not None:
-            print("~~~ Stop recording ~~~")
-            self.recorder.stop_recording()
-        self.recorder_index += 1
-        fn = self.filename_gen(self.recorder_index)
-        logging.info("Buffering to %s", fn)
-        print("~~~ Buffering to %s ~~~" % fn)
-        self.recorder = gstrecorder.Recorder(ip=self.ip, filename=fn)
+        self.index = -1
+        #self.recorder_index = -1
+        #self.recorder = None
+        #self.next_recorder()
+        self.recorder = gstrecorder.Recorder(url=self.url)
         self.recorder.start()
+
+    #def next_recorder(self):
+    #    if self.recorder is not None:
+    #        print("~~~ Stop recording ~~~")
+    #        t = time.monotonic()
+    #        print(
+    #            "Recorded %s second long video" %
+    #            (t - self.recorder.start_time))
+    #        self.recorder.stop_recording()
+    #    self.recorder_index += 1
+    #    fn = self.filename_gen(self.recorder_index)
+    #    logging.info("Buffering to %s", fn)
+    #    print("~~~ Buffering to %s ~~~" % fn)
+    #    self.recorder = gstrecorder.Recorder(ip=self.ip, filename=fn)
+    #    self.recorder.start()
 
     def activate(self, t):
         super(TriggeredRecording, self).activate(t)
-        if self.recorder.recording:
-            self.next_recorder()
-        # TODO log filename, time
-        print("~~~ Started recording ~~~")
-        self.recorder.start_recording()
+        if self.recorder.filename is not None:
+            self.recorder.stop_saving()  # TODO instead switch files?
+
+        # make new filename
+        self.index += 1
+        fn = self.filename_gen(self.index)
+        logging.info("Buffering to %s", fn)
+
+        # TODO wait for stop_saving to finish?
+
+        # start saving
+        print("~~~ Started recording [%s] ~~~" % fn)
+        self.recorder.start_saving(fn)
+
+        #if self.recorder.recording:
+        #    self.next_recorder()
+        ## TODO log filename, time
+        #self.recorder.start_recording()
 
     def deactivate(self, t):
         super(TriggeredRecording, self).deactivate(t)
-        print("~~~ Deactivate ~~~")
-        self.next_recorder()
+        #print("~~~ Deactivate ~~~")
+        #self.next_recorder()
+        if self.recorder.filename is not None:
+            print("~~~ Stop recording ~~~")
+            self.recorder.stop_saving()
 
 
 def test():

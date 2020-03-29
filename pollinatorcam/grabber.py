@@ -119,6 +119,8 @@ class Grabber:
         self.ip = ip
         self.retry = retry
         self.fake_detection = fake_detection
+        if self.fake_detection:
+            self.last_detection = time.monotonic() - 5.0
         self.capture_thread = CaptureThread(cam=self.cam, retry=self.retry)
         self.capture_thread.start()
         self.crop = None
@@ -141,7 +143,8 @@ class Grabber:
                 '%s_%s_%i.avi' % (dt.strftime('%H%M%S'), self.name, i))
 
         self.trigger = trigger.TriggeredRecording(
-            self.cam.ip, 0.1, 1.0, 3.0, 10.0, fng)
+            self.cam.rtsp_url(channel=1, subtype=0),
+            0.1, 1.0, 3.0, 10.0, fng)
 
         # TODO set initial mask from taxonomy
         self.detector = trigger.MaskedDetection(0.5)
@@ -180,10 +183,13 @@ class Grabber:
         dt = datetime.datetime.now()
         ts = dt.strftime('%y%m%d_%H%M%S_%f')
 
-        print("Analyze: %s" % ts)
+        #print("Analyze: %s" % ts)
         if self.fake_detection:
-            print(im.mean())
+            #print(im.mean())
             t = im.mean() < 100
+            #if time.monotonic() - self.last_detection > 5.0:
+            #    t = True
+            #    self.last_detection = time.monotonic()
         else:
             cim = self.crop(im)
             o = self.client.run(cim)
