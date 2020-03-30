@@ -13,14 +13,6 @@ url_string = "rtsp://{user}:{password}@{ip}:554/cam/realmonitor?channel=1&subtyp
 
 #default_pre_record_time = 1000000000
 #default_pre_record_time = 3 * Gst.SECOND  # TODO configure
-#cmd_string = (
-#    'rtspsrc location="{url} latency=50000000" !'
-#    'queue max-size-buffers=0 max-size-bytes=0 max-size-time={pre_record_time} leaky=2 min-threshold-time={pre_record_time} !'
-#    'valve name=valve !'
-#    'rtph265depay !'
-#    'h265parse !'
-#    'mp4mux !'
-#    'filesink location={filename}')
 
 cmd_string = (  # TODO configure queue latency/max-size-time/etc?
     #'rtspsrc name=src0 location="{url}" latency=0 tcp-timeout=0 teardown-timeout=0 timeout=0 drop-on-latency=true max-rtcp-rtp-time-offset=-1 max-ts-offset=10000000000 ! '
@@ -31,33 +23,6 @@ cmd_string = (  # TODO configure queue latency/max-size-time/etc?
     'queue name=queue0 max-size-time=1000000 min-threshold-time=1000000000 ! '  # this is the 'delay'
     'fakesink name=fakesink0 sync=false '
 )
-
-#default_pre_record_time = 4000
-#cmd_string = (
-#    'rtspsrc location="{url}" latency={pre_record_time} ! '
-#    'valve name=valve ! '
-#    'rtph265depay ! '
-#    'h265parse ! '
-#    'mp4mux ! '
-#    'filesink location={filename}')
-
-#default_pre_record_time = 2000
-#cmd_string = (
-#    'rtspsrc location="{url}" ! '
-#    'rtpjitterbuffer latency={pre_record_time} ! '
-#    'valve name=valve ! '
-#    'rtph265depay ! '
-#    'h265parse ! '
-#    'mp4mux ! '
-#    'filesink location={filename}')
-
-#cmd_string = (
-#    'rtspsrc location="{url}" latency={pre_record_time} !'
-#    'rtph265depay !'
-#    'h265parse !'
-#    'mp4mux !'
-#    'valve name=valve !'
-#    'filesink location={filename}')
 
 
 class Recorder(threading.Thread):
@@ -72,7 +37,6 @@ class Recorder(threading.Thread):
             Gst.init([])
             self._inited = True
 
-        #self.pipeline = Gst.Pipeline.new('filewriter')
         self.pipeline = Gst.parse_launch(
             cmd_string.format(url=self.url))
 
@@ -93,7 +57,6 @@ class Recorder(threading.Thread):
             del self.bus
 
     def __del__(self):
-        # TODO need clean shutdown
         if self.playmode:
             self.stop_pipeline()
 
@@ -265,96 +228,6 @@ class Recorder(threading.Thread):
 
         self.pipeline.set_state(Gst.State.PLAYING)
         GLib.timeout_add(500, self._set_latency)
-        self.loop.run()
-        self.playmode = False
-
-
-class OldRecorder(threading.Thread):
-    _inited = False
-    def __init__(self, *args, **kwargs):
-        ip = kwargs.pop('ip')
-        filename = kwargs.pop('filename')
-        if 'user' in kwargs:
-            user = kwargs.pop('user')
-        else:
-            user = os.environ['PCAM_USER']
-        if 'password' in kwargs:
-            password = kargs.pop('password')
-        else:
-            password = os.environ['PCAM_PASSWORD']
-        if 'pre_record_time' in kwargs:
-            pre_record_time = kwargs.pop('pre_record_time')
-        else:
-            pre_record_time = default_pre_record_time
-        super(OldRecorder, self).__init__(*args, **kwargs)
-
-        if not self._inited or not Gst.is_initialized():
-            Gst.init([])
-            self._inited = True
-
-        url = url_string.format(user=user, password=password, ip=ip)
-        cmd = cmd_string.format(
-            url=url, pre_record_time=pre_record_time,
-            filename=filename)
-        self.pipeline = Gst.parse_launch(cmd)
-        #self.pipeline.set_latency(pre_record_time * 1000000)
-
-        self.valve = self.pipeline.get_child_by_name("valve")
-        self.valve.set_property('drop', True)
-        #self.sink = self.pipeline.get_child_by_name("sink")
-        #self.sink.set_property('location', filename)
-
-        self.bus = self.pipeline.get_bus()
-        self.bus.add_signal_watch()
-        self._on_message_cb = self.bus.connect("message", self.on_message)
-
-        self.start_time = None
-        self.recording = False
-
-    def teardown(self):
-        if hasattr(self, 'bus'):
-            print("!!! Deleting !!!")
-            self.bus.disconnect(self._on_message_cb)
-            self.bus.remove_signal_watch()
-            del self.bus
-
-    def __del__(self):
-        self.teardown()
-
-    def on_message(self, bus, message):
-        t = message.type
-        if t == Gst.MessageType.EOS:
-            self.pipeline.set_state(Gst.State.NULL)
-            print("!!! End of stream !!!")
-            self.playmode = False
-            self.loop.quit()
-        elif t == Gst.MessageType.ERROR:
-            self.pipeline.set_state(Gst.State.NULL)
-            err, debug = message.parse_error()
-            print("Error: %s[%s]" % (err, debug))
-            self.playmode = False
-            self.loop.quit()
-        #print(t, message)
-        #print(self.pipeline.get_latency())
-
-    def start_recording(self):
-        print("Starting recording")
-        #self.sink.set_property('location', filename)
-        self.start_time = time.monotonic()
-        self.valve.set_property('drop', False)
-        self.recording = True
-
-    def stop_recording(self, and_join=True):
-        self.pipeline.send_event(Gst.Event.new_eos())
-        self.recording = False
-        if and_join:
-            self.join()
-            self.teardown()
-
-    def run(self):
-        self.playmode = True
-        self.loop = GLib.MainLoop()
-        self.pipeline.set_state(Gst.State.PLAYING)
         self.loop.run()
         self.playmode = False
 

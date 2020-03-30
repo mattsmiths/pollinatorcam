@@ -9,97 +9,24 @@ Grab images from camera
 
 import argparse
 import datetime
-import io
 import logging
 import os
-import pickle
-import threading
 import time
 
 import cv2
 import numpy
-import PIL.Image
-import requests
 
 import tfliteserve
 
+from . import cvcapture
 from . import dahuacam
-from . import gstrecorder
+from . import gstcapture
 from . import logger
 from . import trigger
 
 
 # TODO include this in config
 data_dir = '/mnt/data/'
-
-
-class CaptureThread(threading.Thread):
-    def __init__(self, *args, **kwargs):
-        self.cam = kwargs.pop('cam')
-        if 'retry' in kwargs:
-            self.retry = kwargs.pop('retry')
-        else:
-            self.retry = False
-        kwargs['daemon'] = kwargs.get('daemon', True)
-        super(CaptureThread, self).__init__(*args, **kwargs)
-
-        self.url = self.cam.rtsp_url(channel=1, subtype=1)
-        self._start_cap()
-
-        self.error = None
-        self.keep_running = True
-
-        self.timestamp = None
-        self.image = None
-        self.image_ready = threading.Condition() 
-
-    def _start_cap(self):
-        if hasattr(self, 'cap'):
-            del self.cap
-        self.cap = cv2.VideoCapture(self.url)
-
-    def _read_frame(self):
-        r, im = self.cap.read()
-        if not r or im is None:
-            raise Exception("Failed to capture: %s, %s" % (r, im))
-        with self.image_ready:
-            #if self.timestamp is not None:
-            #    print("Frame dt:", time.time() - self.timestamp)
-            self.timestamp = time.time()
-            self.image = im
-            self.error = None
-            self.image_ready.notify()
-
-    def run(self):
-        while self.keep_running:
-            try:
-                self._read_frame()
-            except Exception as e:
-                with self.image_ready:
-                    self.error = e
-                    self.timestamp = time.time()
-                    self.image = None
-                    self.image_ready.notify()
-                if not self.retry:
-                    break
-                logging.info("Restarting capture: %s", self.url)
-                self._start_cap()
-
-    def next_image(self, timeout=None):
-        with self.image_ready:
-            if not self.image_ready.wait(timeout=timeout):
-                raise RuntimeError("No new image within timeout")
-            if self.error is None:
-                return True, self.image, self.timestamp
-            return False, self.error, self.timestamp
-
-    def stop(self):
-        if self.is_alive():
-            self.keep_running = False
-            self.join()
-
-    def __del__(self):
-        self.stop()
 
 
 class Grabber:
@@ -121,8 +48,7 @@ class Grabber:
         self.fake_detection = fake_detection
         if self.fake_detection:
             self.last_detection = time.monotonic() - 5.0
-        self.capture_thread = CaptureThread(cam=self.cam, retry=self.retry)
-        self.capture_thread.start()
+        self.start_capture_thread()
         self.crop = None
 
         self.name = name
@@ -155,11 +81,21 @@ class Grabber:
         self.analysis_logger = logger.AnalysisResultsSaver(
             os.path.join(data_dir, 'detection', self.name))
 
+    def start_capture_thread(self):
+        self.capture_thread = cvcapture.CVCaptureThread(
+            cam=self.cam, retry=self.retry)
+        # TODO retry
+        #self.capture_thread = gstcapture.GstCaptureThread(
+        #    url=self.cam.rtsp_url(channel=1, subtype=1))
+        self.capture_thread.start()
+
     def __del__(self):
         self.capture_thread.stop()
 
     def build_crop(self, example_image):
         h, w = example_image.shape[:2]
+        if h == 224 and w == 224:
+            return lambda image: image
         if h > w:
             t = (h // 2) - (w // 2)
             b = t + w
@@ -215,8 +151,9 @@ class Grabber:
             # next image timed out
             if not self.capture_thread.is_alive():
                 logging.info("Restarting capture thread")
-                self.capture_thread = CaptureThread(cam=self.cam, retry=self.retry)
-                self.capture_thread.start()
+                self.start_capture_thread()
+                #self.capture_thread = CVCaptureThread(cam=self.cam, retry=self.retry)
+                #self.capture_thread.start()
                 # TODO restart record also?
             else:
                 logging.info("Frame grab timed out, waiting...")
