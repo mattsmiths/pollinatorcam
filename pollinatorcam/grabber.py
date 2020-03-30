@@ -152,8 +152,6 @@ class Grabber:
             if not self.capture_thread.is_alive():
                 logging.info("Restarting capture thread")
                 self.start_capture_thread()
-                #self.capture_thread = CVCaptureThread(cam=self.cam, retry=self.retry)
-                #self.capture_thread.start()
                 # TODO restart record also?
             else:
                 logging.info("Frame grab timed out, waiting...")

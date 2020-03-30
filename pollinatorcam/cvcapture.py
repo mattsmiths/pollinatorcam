@@ -32,13 +32,14 @@ class CVCaptureThread(threading.Thread):
 
     def _read_frame(self):
         r, im = self.cap.read()
+        # convert to rgb
         if not r or im is None:
             raise Exception("Failed to capture: %s, %s" % (r, im))
         with self.image_ready:
             #if self.timestamp is not None:
             #    print("Frame dt:", time.time() - self.timestamp)
             self.timestamp = time.time()
-            self.image = im
+            self.image = im[:, :, ::-1]  # BGR to RGB
             self.error = None
             self.image_ready.notify()
 

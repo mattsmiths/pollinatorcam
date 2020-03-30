@@ -54,9 +54,10 @@ class GstCaptureThread(threading.Thread):
 
         self.appsink = self.pipeline.get_child_by_name("appsink0")
         if self.appsink is not None:
-            caps = Gst.caps_from_string(
-                'video/x-raw, format=(string){BGR, GRAY8}; '
-                'video/x-bayer,format=(string){rggb,bggr,grbg,gbrg}')
+            #caps = Gst.caps_from_string(
+            #    'video/x-raw, format=(string){BGR, GRAY8}; '
+            #    'video/x-bayer,format=(string){rggb,bggr,grbg,gbrg}')
+            caps = Gst.caps_from_string('video/x-raw, format=(string)RGB')
             self.appsink.set_property('caps', caps)
             self.appsink.connect("new-sample", self.new_buffer, self.appsink)
 
