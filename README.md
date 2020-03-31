@@ -1,3 +1,16 @@
+Installation notes
+-----
+
+Several environment variable are used for configuration/running. Please set
+the following in your ~/.bashrc (or wherever else is appropriate):
+
+```bash
+export PCAM_USER="camera login user name"
+export PCAM_PASSWORD="camera login password"
+export PCAM_NAS_USER="ftp server user"
+export PCAM_NAS_PASSWORD="ftp server password"
+```
+
 # Data
 
 - snapshots:
