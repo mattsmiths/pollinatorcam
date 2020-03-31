@@ -28,6 +28,11 @@ def build_camera_url(
             subtype=subtype))
 
 
+def mac_address_to_name(cam):
+    mac = cam.get_config('Network.eth0.PhysicalAddress').strip().split('=')[1]
+    return ''.join(mac.split(':'))
+
+
 def initial_configuration(c, reboot=True):
     # TODO combine with snap config
     # TODO pull out a 'config' structure that contains settings

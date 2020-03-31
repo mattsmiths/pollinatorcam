@@ -77,9 +77,14 @@ def check_if_camera(ip):
     logging.debug("Checking if ip[%s] is a camera", ip)
     dc = dahuacam.DahuaCamera(ip)
     try:
-        # TODO verify name is mac address
         n = dc.get_name()
         logging.debug("Camera returned name: %s", n)
+        mn = dahuacam.mac_address_to_name(dc)
+        logging.debug("Camera name from mac: %s", mn)
+        if mn != n:
+            logging.error(
+                "Camera %s isn't configured: %s != %s" % (ip, n, mn))
+            return False
         return n
     except Exception as e:
         logging.debug("IP returned error: %s", e)
