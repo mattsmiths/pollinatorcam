@@ -72,8 +72,10 @@ class Grabber:
             self.cam.rtsp_url(channel=1, subtype=0),
             0.1, 1.0, 3.0, 10.0, fng)
 
-        # TODO set initial mask from taxonomy
-        self.detector = trigger.MaskedDetection(0.5)
+        #self.detector = trigger.MaskedDetection(0.5)
+        self.detector = trigger.RunningTrigger(
+            n_std=3.0, mind_dev=0.1, treshold=0.9,
+            allow={'birds': True, 'mammals': True})
 
         self.analyze_every_n = 10
         self.frame_count = -1

@@ -5,6 +5,27 @@ import struct
 import numpy
 
 
+def iter_raw_file(fn):
+    data = [
+        ('detection', 1, lambda b: struct.unpack('b', b)[0]),
+        ('timestamp', 8, lambda b: struct.unpack('d', b)[0]),
+        ('labels', 2988 * 8, lambda b: numpy.fromstring(b, dtype='f8')),
+    ]
+    reading = True
+    with open(fn, 'rb') as f:
+        while reading:
+            entry = {}
+            for datum in data:
+                l, n, uf = datum
+                b = f.read(n)
+                if len(b) != n:
+                    reading = False
+                    break
+                entry[l] = uf(b)
+            else:
+                yield entry
+
+
 class AnalysisResultsSaver:
     def __init__(self, data_dir):
         self.file = None
@@ -37,6 +58,7 @@ class AnalysisResultsSaver:
         # pack data, write to file
         # byte 0 = detection bool
         # byte 1:8 = timestamp
+        # TODO save length of array
         # byte 9:? = 8 bytes per item
         bs = (
             struct.pack('b', record['detection']) +

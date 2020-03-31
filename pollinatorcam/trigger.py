@@ -32,6 +32,73 @@ import numpy
 from . import gstrecorder
 
 
+def make_allow(insects=False, birds=False, mammals=False):
+    allow = numpy.zeros(2988)
+    if insects:
+        allow[75:1067] = 1
+        allow[2291] = 1
+    if birds:
+        allow[1103:1589] = 1
+    if mammals:
+        allow[1589:1638] = 1
+    return allow
+
+
+class RunningThreshold:
+    def __init__(self, min_n=10, n_std=3.0, min_dev=0.1, threshold=0.9, allow=None):
+        self.min_n = min_n
+        self.n_std = n_std
+        self.min_dev = min_dev
+        self.static_threshold = threshold
+        if isinstance(allow, dict):
+            allow = make_allow(**allow)
+        self.allow = allow
+
+        self.buffers = None
+        self.mean = None
+        self.std = None
+        self.thresholds = None
+
+    def make_buffers(self, b):
+        self.buffers = numpy.empty((self.min_n, len(b)))
+        self.index = -self.min_n
+        self.thresholds = numpy.ones_like(b) * self.static_threshold
+        if self.allow is None:
+            self.allow = numpy.ones_like(b, dtype=bool)
+    
+    def update_buffers(self, b):
+        if self.buffers is None:
+            self.make_buffers(b)
+        self.buffers[self.index] = b
+        if self.index < 0:  # incomplete buffers
+            self.index += 1
+            # use default thresholds or don't trigger
+            self.mean = None
+            self.std = None
+        else:
+            self.index = (self.index + 1) % self.min_n
+            # recompute mean and std
+            self.mean = numpy.mean(self.buffers, axis=0)
+            self.std = numpy.std(self.buffers, axis=0)
+
+    def check(self, b):
+        b = numpy.squeeze(b)
+        self.update_buffers(b)
+        d = b > self.thresholds
+        if self.mean is not None:
+            dev = self.std * self.n_std
+            dev[dev < self.min_dev] = self.min_dev
+            # use running avg
+            d = numpy.logical_or(
+                d,
+                numpy.abs(b - self.mean) > dev)
+        return numpy.logical_and(d, self.allow)
+    
+    def __call__(self, b):
+        return self.check(b)
+
+
+
 class MaskedDetection:
     def __init__(self, threshold, initial_mask=None):
         self.threshold = threshold
