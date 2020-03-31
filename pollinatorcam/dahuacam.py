@@ -3,9 +3,11 @@
 # - whatever is needed for camera configuration
 # - fps control
 
+import argparse
 import datetime
 import os
 import urllib
+import socket
 
 import requests
 
@@ -60,7 +62,7 @@ def initial_configuration(c, reboot=True):
     ]
     r = c.set_config(config, prefix=prefix)
     config_result['extra'] = r
-    print("Set %s: %s" % (prefix, r))
+    #print("Set %s: %s" % (prefix, r))
 
     #table.Encode[0].ExtraFormat[0].VideoEnable=true
 
@@ -89,7 +91,7 @@ def initial_configuration(c, reboot=True):
     ]
     r = c.set_config(config, prefix=prefix)
     config_result['main'] = r
-    print("Set %s: %s" % (prefix, r))
+    #print("Set %s: %s" % (prefix, r))
 
     #table.Encode[0].MainFormat[0].VideoEnable=true
 
@@ -291,7 +293,7 @@ class DahuaCamera:
             assert len(c) == 2
             k, v = c
             url += "&%s=%s" % (add_prefix(k), v)
-        print(url)
+        #print(url)
         r = self.session.get(url)
         # TODO parse text, check return code
         return r.text
@@ -495,3 +497,92 @@ class DahuaCamera:
         if 'Error' in r or '=' not in r:
             raise DahuaCameraError(r.strip())
         return r.strip().split('=')[1]
+
+
+def get_host_ip(ip, port=80):
+    """Lookup host [this] ip using a camera [or other] ip"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect((ip, port))
+    return s.getsockname()[0]
+
+
+def cmdline_run():
+    nas = {
+        'user': 'ipcam',
+        'enable': True,
+    }
+
+    # look for options in env
+    if 'PCAM_NAS_USER' in os.environ:
+        nas['user'] = os.environ['PCAM_NAS_USER']
+    if 'PCAM_NAS_PASSWORD' in os.environ:
+        nas['password'] = os.environ['PCAM_NAS_PASSWORD']
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-D', '--nasdir', type=str, default=' ',
+        help='NAS directory to store snaps')
+    parser.add_argument(
+        '-F', '--fps', type=float, default=1/60.,
+        help="snapshot fps")
+    parser.add_argument(
+        '-i', '--ip', type=str, required=True,
+        help="camera ip address")
+    parser.add_argument(
+        '-I', '--nasip', type=str,
+        help='NAS ip address, if not provided will be looked up')
+    parser.add_argument(
+        '-k', '--keepalive', action='store_true',
+        help='Do not reboot after configuration')
+    parser.add_argument(
+        '-p', '--password', default=None,
+        help='camera password')
+    parser.add_argument(
+        '-P', '--naspassword', type=str, required='password' not in nas,
+        help='NAS password')
+    parser.add_argument(
+        '-r', '--reboot', action='store_true',
+        help='Reset camera after setting configuration')
+    parser.add_argument(
+        '-u', '--user', default=None,
+        help='camera username')
+    parser.add_argument(
+        '-U', '--nasuser', type=str,
+        help='NAS user')
+    parser.add_argument(
+        '-v', '--verbose', action='store_true',
+        help='Make output more verbose')
+    args = parser.parse_args()
+
+    # host/nas ip from arg or get using socket
+    if args.nasip is None:
+        nas['ip'] = get_host_ip(args.ip)
+    else:
+        nas['ip'] = args.nasip
+    if args.nasuser is not None:
+        nas['user'] = args.nasuser
+    if args.naspassword is not None:
+        nas['password'] = args.naspassword
+    nas['directory'] = args.nasdir
+
+    print("Connecting to camera: %s" % args.ip)
+    cam = DahuaCamera(args.ip, args.user, args.password)
+    print("Configuring snapshots: %s, %s" % (args.fps, nas))
+    sr = set_snap_config(cam, nas, args.fps)
+    print("Configuring video...")
+    ir = initial_configuration(cam, reboot=False)
+    ok = True
+    for d in (sr, ir):
+        for k in d:
+            if d[k].strip() != 'OK':
+                ok = False
+                print("Failed to set config %s: %s" % (k, d[k].strip()))
+            elif args.verbose:
+                print("Configuration result %s: %s" % (k, d[k].strip()))
+    if not args.keepalive and ok:
+        print("Rebooting...")
+        cam.reboot()
+
+
+if __name__ == '__main__':
+    cmdline_run()

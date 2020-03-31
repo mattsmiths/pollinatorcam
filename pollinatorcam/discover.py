@@ -77,6 +77,7 @@ def check_if_camera(ip):
     logging.debug("Checking if ip[%s] is a camera", ip)
     dc = dahuacam.DahuaCamera(ip)
     try:
+        # TODO verify name is mac address
         n = dc.get_name()
         logging.debug("Camera returned name: %s", n)
         return n
