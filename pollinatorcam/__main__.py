@@ -13,5 +13,6 @@ if __name__ == '__main__':
         elif sys.argv[1] == 'configure':
             sys.argv.pop(1)
             dahuacam.cmdline_run()
+        grabber.cmdline_run()
     else:
         grabber.cmdline_run()

@@ -95,7 +95,7 @@ class RunningThreshold:
         md = numpy.logical_and(d, self.allow)
         info = {
             'masked_detection': md,
-            'indicies': numpy.nonzero(md)[0],
+            'indices': numpy.nonzero(md)[0],
         }
         return numpy.any(md), info
     
