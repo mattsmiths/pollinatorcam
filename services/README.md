@@ -47,6 +47,9 @@ sudo journalctl -au pcam-discover
 # to stop a service (see note below)
 sudo systemctl stop pcam@192.168.0.120
 # this will get restarted by pcam-discover unless the ip is disabled
+
+# to see what camera services are active
+sudo systemctl list-units | grep pcam@
 ```
 
 None of these services provide the initial configuration (see
