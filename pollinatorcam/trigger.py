@@ -92,7 +92,12 @@ class RunningThreshold:
             d = numpy.logical_or(
                 d,
                 numpy.abs(b - self.mean) > dev)
-        return numpy.logical_and(d, self.allow)
+        md = numpy.logical_and(d, self.allow)
+        info = {
+            'masked_detection': md,
+            'indicies': numpy.nonzero(md)[0],
+        }
+        return numpy.any(md), info
     
     def __call__(self, b):
         return self.check(b)

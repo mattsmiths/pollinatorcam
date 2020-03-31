@@ -73,8 +73,8 @@ class Grabber:
             0.1, 1.0, 3.0, 10.0, fng)
 
         #self.detector = trigger.MaskedDetection(0.5)
-        self.detector = trigger.RunningTrigger(
-            n_std=3.0, mind_dev=0.1, treshold=0.9,
+        self.detector = trigger.RunningThreshold(
+            n_std=3.0, min_dev=0.1, threshold=0.9,
             allow={'birds': True, 'mammals': True})
 
         self.analyze_every_n = 10
