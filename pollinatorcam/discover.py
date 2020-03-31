@@ -86,11 +86,27 @@ def check_if_camera(ip):
 
 
 def verify_camera_service(ip):
-    # TODO
     # compute systemd service name
-    # if service is registered, exit
-    # else make and start new service from template
-    pass
+    name = 'pcam@%s' % ip
+    logging.debug("Checking status of %s service", name)
+
+    # check if service is running
+    cmd = 'sudo systemctl is-active %s --quiet' % name
+    logging.debug("Running %s", cmd)
+    o = subprocess.run(cmd.split())
+    logging.debug("Return code %i", o.returncode)
+    if o.returncode != 0:
+        logging.info("Service %s not running, starting...", name)
+        # not running, try starting
+        cmd = 'sudo systemctl start %s' % name
+        try:
+            o = subprocess.run(cmd.split(), stdout=subprocess.PIPE, check=True)
+            return True
+        except Exception as e:
+            logging.error("Failed to start service %s: %s", name, e)
+            return False
+    else:
+        return True
 
 
 def check_cameras(cidr=None):
@@ -139,20 +155,26 @@ def check_cameras(cidr=None):
                 ip, e)
 
     # check all cameras have running services
-    for ip in config:
+    for ip in list(config.keys()):
         if config[ip] is not False:
+            r = True
             try:
-                verify_camera_service(ip)
+                r = verify_camera_service(ip)
             except Exception as e:
                 logging.warning(
                     "Failed verify_camera_service(%s): %s",
                     ip, e)
+                r = False
+            if not r:
+                # failed to start service, delete from config
+                # to allow additional attempts at starting
+                del config[ip]
 
     if should_save and not prevent_save:
         save_config(config, tmp_filename)
 
 
-def run_cmdline():
+def cmdline_run():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-i', '--ips', type=str, default="",
@@ -179,4 +201,4 @@ def run_cmdline():
 
 
 if __name__ == '__main__':
-    run_cmdline()
+    cmdline_run()

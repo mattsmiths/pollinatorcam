@@ -1,0 +1,14 @@
+[Unit]
+Description=pollinatorcamera[%i]
+After=network.target
+
+[Service]
+User=pi
+ExecStart=/home/pi/r/cbs-ntcore/pollinatorcam/services/run_pcam.sh %i
+RestartSec=30
+Restart=always
+StandardOutput=file:/mnt/data/logs/%i.out
+StandardError=file:/mnt/data/logs/%i.err
+
+[Install]
+WantedBy=multi-user.target

@@ -170,6 +170,7 @@ class Grabber:
 
         # if frame should be checked...
         if self.frame_count % self.analyze_every_n == 0:
+            # TODO need to catch errors, etc
             self.analyze_frame(im)
 
     def run(self):
