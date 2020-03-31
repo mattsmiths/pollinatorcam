@@ -74,6 +74,12 @@ def scan_network_for_ips(cidr=None):
 
 
 def check_if_camera(ip):
+    """Check if the provided ip is a configured camera
+    Returns:
+    camera name if configured camera
+    None if camera but not configured
+    False if not camra
+    """
     logging.debug("Checking if ip[%s] is a camera", ip)
     dc = dahuacam.DahuaCamera(ip)
     try:
@@ -84,7 +90,7 @@ def check_if_camera(ip):
         if mn != n:
             logging.error(
                 "Camera %s isn't configured: %s != %s" % (ip, n, mn))
-            return False
+            return None
         return n
     except Exception as e:
         logging.debug("IP returned error: %s", e)
@@ -154,7 +160,9 @@ def check_cameras(cidr=None):
 
         # check if ip is a camera
         try:
-            config[ip] = check_if_camera(ip)
+            r = check_if_camera(ip)
+            if r is not None:
+                config[ip] = r
         except Exception as e:
             logging.warning(
                 "Failed check_if_camera(%s): %s",

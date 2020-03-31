@@ -572,6 +572,10 @@ def cmdline_run():
 
     print("Connecting to camera: %s" % args.ip)
     cam = DahuaCamera(args.ip, args.user, args.password)
+    if args.verbose:
+        print("Connected:", cam.ip, cam.user, cam.password)
+    n = cam.get_name()
+    print("Camera name: %s" % n)
     print("Configuring snapshots: %s, %s" % (args.fps, nas))
     sr = set_snap_config(cam, nas, args.fps)
     print("Configuring video...")
