@@ -30,7 +30,10 @@ data_dir = '/mnt/data/'
 
 
 class Grabber:
-    def __init__(self, ip, name=None, retry=False, fake_detection=False):
+    def __init__(
+            self, ip, name=None, retry=False,
+            fake_detection=False, save_all_detections=True,
+            roi=None):
         # TODO use general config here
         self.cam = dahuacam.DahuaCamera(ip)
         # TODO do this every startup?
@@ -59,68 +62,102 @@ class Grabber:
         if not os.path.exists(self.vdir):
             os.makedirs(self.vdir)
 
-        def fng(i):
-            dt = datetime.datetime.now()
-            d = os.path.join(self.vdir, dt.strftime('%y%m%d'))
-            if not os.path.exists(d):
-                os.makedirs(d)
-            return os.path.join(
-                d,
-                '%s_%s_%i.mp4' % (dt.strftime('%H%M%S'), self.name, i))
+        #def fng(i, meta):
+        #    if 'datetime' in meta:
+        #        dt = meta['datetime']
+        #    else:
+        #        dt = datetime.datetime.now()
+        #    d = os.path.join(self.vdir, dt.strftime('%y%m%d'))
+        #    if not os.path.exists(d):
+        #        os.makedirs(d)
+        #    return os.path.join(
+        #        d,
+        #        '%s_%s_%i.mp4' % (dt.strftime('%H%M%S'), self.name, i))
 
         self.trigger = trigger.TriggeredRecording(
             self.cam.rtsp_url(channel=1, subtype=0),
-            0.1, 1.0, 3.0, 10.0, fng)
+            0.1, 1.0, 3.0, 10.0, self.vdir, self.name)
 
         #self.detector = trigger.MaskedDetection(0.5)
         self.detector = trigger.RunningThreshold(
             n_std=3.0, min_dev=0.1, threshold=0.6,
-            allow={'insects': True})
-            #allow={'birds': True, 'mammals': True})
+            allow={'insects': True}
+            #allow={'birds': True, 'mammals': True}
+        )
 
         self.analyze_every_n = 10
         self.frame_count = -1
 
-        self.analysis_logger = logger.AnalysisResultsSaver(
-            os.path.join(data_dir, 'detection', self.name))
+        self.save_all_detections = save_all_detections
+        if self.save_all_detections:
+            self.analysis_logger = logger.AnalysisResultsSaver(
+                os.path.join(data_dir, 'detection', self.name))
+
+        # left, right, dimension
+        self.roi = roi
 
     def start_capture_thread(self):
         self.capture_thread = cvcapture.CVCaptureThread(
             cam=self.cam, retry=self.retry)
+        self.analyze_every_n = 10
         # TODO retry
         #self.capture_thread = gstcapture.GstCaptureThread(
         #    url=self.cam.rtsp_url(channel=1, subtype=1))
+        #self.analyze_every_n = 1
         self.capture_thread.start()
 
     def __del__(self):
         self.capture_thread.stop()
 
     def build_crop(self, example_image):
+        _, th, tw, _ = self.client.buffers.meta['input']['shape']
         h, w = example_image.shape[:2]
-        if h == 224 and w == 224:
-            return lambda image: image
-        if h > w:
-            t = (h // 2) - (w // 2)
-            b = t + w
+        if self.roi is None:
+            if h == th and w == tw:
+                return lambda image: image
+            if h > w:
+                t = (h // 2) - (w // 2)
+                b = t + w
+            else:
+                t = 0
+                b = h
+            if w > h:
+                l = (w // 2) - (h // 2)
+                r = l + h
+            else:
+                l = 0
+                r = w
         else:
-            t = 0
-            b = h
-        if w > h:
-            l = (w // 2) - (h // 2)
-            r = l + h
-        else:
-            l = 0
-            r = w
+            l, t, dim = self.roi
+            r = l + dim
+            b = t + dim
+            assert l >= 0 and l < w
+            assert r > 0 and r <= w
+            assert t >= 0 and t < h
+            assert b > 0 and b <= h
 
         def cf(image):
             # TODO use client input buffer size
-            return cv2.resize(image[t:b, l:r], (224, 224), interpolation=cv2.INTER_AREA)
+            return cv2.resize(image[t:b, l:r], (th, tw), interpolation=cv2.INTER_AREA)
         
         return cf
+
+    def set_roi(self, roi):
+        # TODO make this a data class
+        assert len(roi) == 3
+        assert all([isinstance(i, int) for i in roi])
+        self.roi = roi
+        self.crop = None
 
     def analyze_frame(self, im):
         dt = datetime.datetime.now()
         ts = dt.strftime('%y%m%d_%H%M%S_%f')
+        meta = {
+            'datetime': dt,  # NOTE not json encodable
+            'timestamp': ts,
+        }
+        if self.roi is not None:
+            meta['roi'] = self.roi
 
         #print("Analyze: %s" % ts)
         if self.fake_detection:
@@ -133,18 +170,38 @@ class Grabber:
             cim = self.crop(im)
             o = self.client.run(cim)
             t, info = self.detector(o)
-            if t:
-                detections = {}
+
+            # look up detection labels sorted by confidence
+            detections = []
+            if len(info['indices']):
                 lbls = self.client.buffers.meta['labels']
-                for i in info['indices']:
-                    detections[str(lbls[i])] = o[0, i]
+                detections = [
+                    (str(lbls[i]), o[0, i]) for i in
+                    sorted(
+                        info['indices'], key=lambda i: o[0, i], reverse=True)]
+            if t:
                 print("Triggered on:")
-                for k in sorted(detections, key=lambda k: detections[k])[:5]:
-                    print("\t%s: %f" % (k, detections[k]))
+                for d in detections[:5]:
+                    k, v = d
+                    print("\t%s: %f" % (k, v))
                 if len(detections) > 5:
                     print("\t...%i detections total" % len(detections))
-            self.analysis_logger.save(dt, {'labels': numpy.squeeze(o), 'detection': t})
-        self.trigger(t)
+
+                # TODO save all 'triggers' even if they don't result in a video
+
+            if self.save_all_detections:
+                self.analysis_logger.save(
+                    dt, {'labels': numpy.squeeze(o), 'detection': t})
+            
+            # add detection results to meta data
+            # - roi
+            # - detection indices and values sorted by value
+            meta['detections'] = detections
+            # - detector info (from info)
+            # TODO other info
+            meta['indices'] = info['indices']
+        self.trigger(t, meta)
+        # if self.trigger.filename is None = not recording
     
     def update(self):
         try:
@@ -169,6 +226,7 @@ class Grabber:
 
         # if first frame
         if self.crop is None:
+            # TODO convert this to a ROI
             self.crop = self.build_crop(im)
 
         # if frame should be checked...
@@ -187,20 +245,28 @@ class Grabber:
 def cmdline_run():
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        '-d', '--save_all_detections', action='store_true',
+        help='save all detection results')
+    parser.add_argument(
         '-f', '--fake', default=False, action='store_true',
-        help="fake client detection")
+        help='fake client detection')
     parser.add_argument(
         '-i', '--ip', type=str, required=True,
-        help="camera ip address")
+        help='camera ip address')
     parser.add_argument(
         '-n', '--name', default=None,
-        help="camera name")
+        help='camera name')
     parser.add_argument(
         '-p', '--password', default=None,
         help='camera password')
     parser.add_argument(
         '-r', '--retry', default=False, action='store_true',
         help='retry on acquisition errors')
+    parser.add_argument(
+        '-R', '--roi', default=None, type=str,
+        help=(
+            'camera subframe roi None to use largest square, '
+            'format is left:top:dimension defining a square'))
     parser.add_argument(
         '-u', '--user', default=None,
         help='camera username')
@@ -211,5 +277,24 @@ def cmdline_run():
     if args.user is not None:
         os.environ['PCAM_USER'] = args.user
 
-    g = Grabber(args.ip, args.name, args.retry, args.fake)
+    if args.roi is not None:
+        tokens = args.roi.split(':')
+        if len(tokens) != 3:
+            raise ValueError(
+                "Invalid roi[%s] should be left:top:dimension"
+                % args.roi)
+        for t in tokens:
+            if not t.isdigit():
+                raise ValueError(
+                    "Invalid roi[%s] token[%s] is not a digit"
+                    % (args.roi, t))
+        roi = [int(t) for t in tokens]
+    else:
+        roi = None
+        
+
+    g = Grabber(
+        args.ip, args.name, args.retry,
+        fake_detection=args.fake, save_all_detections=args.save_all_detections,
+        roi=roi)
     g.run()

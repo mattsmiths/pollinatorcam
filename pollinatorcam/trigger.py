@@ -24,12 +24,24 @@ Duty cycle limit only during triggered period
     if hold off finished, restart recording
 """
 
+import datetime
+import json
 import logging
 import time
+import os
 
 import numpy
 
 from . import gstrecorder
+
+
+class MetaEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, numpy.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, datetime.datetime):
+            return obj.__str__()
+        return json.JSONEncoder.default(self, obj)
 
 
 def make_allow(insects=False, birds=False, mammals=False):
@@ -144,6 +156,7 @@ class Trigger:
         self.triggered = False
 
         self.times = {}
+        self.meta = {}
 
         self.active = None
 
@@ -191,26 +204,36 @@ class Trigger:
                     (t - self.times['start'] >= self.min_time)):
                 self.deactivate(t)
 
-    def set_trigger(self, trigger):
+    def set_trigger(self, trigger, meta):
+        self.last_meta = self.meta
+        self.meta = meta
         if self.triggered:
             if trigger:
+                self.meta['state'] = 'high'
                 self.high()
             else:
+                self.meta['state'] = 'falling_edge'
                 self.falling_edge()
         else:
             if trigger:
+                self.meta['state'] = 'rising_edge'
                 self.rising_edge()
             else:
+                self.meta['state'] = 'low'
                 self.low()
         self.triggered = trigger
 
-    def __call__(self, trigger):
-        return self.set_trigger(trigger)
+    def __call__(self, trigger, meta):
+        return self.set_trigger(trigger, meta)
 
 
 class TriggeredRecording(Trigger):
-    def __init__(self, url, duty_cycle, post_time, min_time, max_time, filename_gen):
-        self.filename_gen = filename_gen
+    def __init__(
+            self, url, duty_cycle, post_time, min_time, max_time,
+            directory, name):
+        self.directory = directory
+        self.name = name
+        #self.filename_gen = filename_gen
         super(TriggeredRecording, self).__init__(
             duty_cycle, post_time, min_time, max_time)
 
@@ -223,6 +246,8 @@ class TriggeredRecording(Trigger):
         #self.next_recorder()
         self.recorder = gstrecorder.Recorder(url=self.url)
         self.recorder.start()
+
+        self.filename = None
 
     #def next_recorder(self):
     #    if self.recorder is not None:
@@ -239,6 +264,18 @@ class TriggeredRecording(Trigger):
     #    self.recorder = gstrecorder.Recorder(ip=self.ip, filename=fn)
     #    self.recorder.start()
 
+    def video_filename(self, meta):
+        if 'datetime' in meta:
+            dt = meta['datetime']
+        else:
+            dt = datetime.datetime.now()
+        d = os.path.join(self.directory, dt.strftime('%y%m%d'))
+        if not os.path.exists(d):
+            os.makedirs(d)
+        return os.path.join(
+            d,
+            '%s_%s.mp4' % (dt.strftime('%H%M%S'), self.name))
+
     def activate(self, t):
         super(TriggeredRecording, self).activate(t)
         if self.recorder.filename is not None:
@@ -246,14 +283,25 @@ class TriggeredRecording(Trigger):
 
         # make new filename
         self.index += 1
-        fn = self.filename_gen(self.index)
-        logging.info("Buffering to %s", fn)
+        self.meta['video_index'] = self.index
+        self.meta['camera_name'] = self.name
+        vfn = self.video_filename(self.meta)
+        #fn = self.filename_gen(self.index, self.meta)
 
         # TODO wait for stop_saving to finish?
 
         # start saving
-        print("~~~ Started recording [%s] ~~~" % fn)
-        self.recorder.start_saving(fn)
+        logging.info("Saving to %s", vfn)
+        print("~~~ Started recording [%s] ~~~" % vfn)
+        self.recorder.start_saving(vfn)
+        self.filename = vfn
+
+        # save meta (and last_meta) data here
+        mfn = os.path.splitext(vfn)[0] + '.json'
+        with open(mfn, 'w') as f:
+            json.dump(
+                {'meta': self.meta, 'last_meta': self.last_meta},
+                f, indent=True, cls=MetaEncoder)
 
         #if self.recorder.recording:
         #    self.next_recorder()
@@ -267,6 +315,7 @@ class TriggeredRecording(Trigger):
         if self.recorder.filename is not None:
             print("~~~ Stop recording ~~~")
             self.recorder.stop_saving()
+            self.filename = None
 
 
 def test():
