@@ -66,7 +66,7 @@ class Grabber:
                 os.makedirs(d)
             return os.path.join(
                 d,
-                '%s_%s_%i.avi' % (dt.strftime('%H%M%S'), self.name, i))
+                '%s_%s_%i.mp4' % (dt.strftime('%H%M%S'), self.name, i))
 
         self.trigger = trigger.TriggeredRecording(
             self.cam.rtsp_url(channel=1, subtype=0),
