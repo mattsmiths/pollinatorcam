@@ -37,6 +37,10 @@ base_filename = '~/.pcam/ips.json'
 tmp_filename = '/dev/shm/pcam/ips.json'  # should be on a tmpfs
 
 
+class ConfigLoadError(Exception):
+    pass
+
+
 def load_config(fn):
     fn = os.path.expanduser(fn)
     logging.debug("Loading config from: %s", fn)
@@ -45,6 +49,27 @@ def load_config(fn):
         return {}
     with open(fn, 'r') as f:
         return json.load(f)
+
+
+def load_cascaded_config():
+    # load temporary config (from tmpfs)
+    try:
+        config = load_config(tmp_filename)
+    except Exception as e:
+        logging.error(
+            "Falling back to blank config after failing to load %s: %s",
+            tmp_filename, e)
+        config = {}
+
+    # overwrite with hard-coded config
+    try:
+        config.update(load_config(base_filename))
+    except Exception as e:
+        logging.error(
+            "Failed to update config with base %s: %s",
+            base_filename, e)
+        raise ConfigLoadError("hard-coded config load failed")
+    return config
 
 
 def save_config(config, fn):
@@ -112,7 +137,7 @@ def verify_camera_service(ip):
         # not running, try starting
         cmd = 'sudo systemctl start %s' % name
         try:
-            o = subprocess.run(cmd.split(), stdout=subprocess.PIPE, check=True)
+            o = subprocess.run(cmd.split(), check=True)
             return True
         except Exception as e:
             logging.error("Failed to start service %s: %s", name, e)
@@ -121,27 +146,36 @@ def verify_camera_service(ip):
         return True
 
 
-def check_cameras(cidr=None):
-    # load temporary config (from tmpfs)
-    try:
-        config = load_config(tmp_filename)
-    except Exception as e:
-        logging.error(
-            "Falling back to blank config after failing to load %s: %s",
-            tmp_filename, e)
-        config = {}
+def status_of_all_camera_services():
+    cmd = (
+        "sudo systemctl show "
+        "--property=Id,ActiveState,ActiveEnterTimestampMonotonic pcam@*")
+    o = subprocess.run(cmd.split(), stdout=subprocess.PIPE, check=True)
+    cams = {}
+    cam_ip = None
+    t = time.monotonic()
+    for l in o.stdout.decode('ascii').splitlines():
+        if len(l.strip()) == 0:
+            continue
+        k, v = l.strip().split("=")
+        if k == 'Id':
+            cam_ip = '.'.join(v.split('@')[1].split('.')[:-1])
+            cams[cam_ip] = {}
+        elif k == 'ActiveState':
+            cams[cam_ip]['Active'] = v == 'active'
+        else:
+            cams[cam_ip]['Uptime'] = t - int(v) / 1000000.
+    return cams
 
-    # overwrite with hard-coded config
+
+def check_cameras(cidr=None):
     prevent_save = False
     try:
-        config.update(load_config(base_filename))
-    except Exception as e:
-        logging.error(
-            "Failed to update config with base %s: %s",
-            base_filename, e)
-        config = {}
+        config = load_cascaded_config()
+    except ConfigLoadError:
         # don't overwrite config
         prevent_save = True
+        config = {}
 
     # only save if config has changed
     should_save = False
