@@ -9,6 +9,7 @@ Grab images from camera
 
 import argparse
 import datetime
+import json
 import logging
 import os
 import time
@@ -62,6 +63,10 @@ class Grabber:
         if not os.path.exists(self.vdir):
             os.makedirs(self.vdir)
 
+        self.mdir = os.path.join(data_dir, 'detections', self.name)
+        if not os.path.exists(self.mdir):
+            os.makedirs(self.mdir)
+
         #def fng(i, meta):
         #    if 'datetime' in meta:
         #        dt = meta['datetime']
@@ -80,8 +85,8 @@ class Grabber:
 
         #self.detector = trigger.MaskedDetection(0.5)
         self.detector = trigger.RunningThreshold(
-            n_std=3.0, min_dev=0.1, threshold=0.6,
-            allow={'insects': True}
+            n_std=3.0, min_dev=0.1, threshold=0.5,
+            #allow={'insects': True}
             #allow={'birds': True, 'mammals': True}
         )
 
@@ -91,7 +96,7 @@ class Grabber:
         self.save_all_detections = save_all_detections
         if self.save_all_detections:
             self.analysis_logger = logger.AnalysisResultsSaver(
-                os.path.join(data_dir, 'detection', self.name))
+                os.path.join(data_dir, 'rawdetections', self.name))
 
         # left, right, dimension
         self.roi = roi
@@ -153,7 +158,7 @@ class Grabber:
         dt = datetime.datetime.now()
         ts = dt.strftime('%y%m%d_%H%M%S_%f')
         meta = {
-            'datetime': dt,  # NOTE not json encodable
+            'datetime': dt,
             'timestamp': ts,
         }
         if self.roi is not None:
@@ -187,7 +192,6 @@ class Grabber:
                 if len(detections) > 5:
                     print("\t...%i detections total" % len(detections))
 
-                # TODO save all 'triggers' even if they don't result in a video
 
             if self.save_all_detections:
                 self.analysis_logger.save(
@@ -200,8 +204,23 @@ class Grabber:
             # - detector info (from info)
             # TODO other info
             meta['indices'] = info['indices']
-        self.trigger(t, meta)
-        # if self.trigger.filename is None = not recording
+        r = self.trigger(t, meta)
+
+        if t or r:
+            # save trigger meta and last_meta
+            dt = self.trigger.meta['datetime']
+            d = os.path.join(self.mdir, dt.strftime('%y%m%d'))
+            if not os.path.exists(d):
+                os.makedirs(d)
+            mfn = os.path.join(
+                d,
+                '%s_%s.json' % (dt.strftime('%H%M%S'), self.name))
+            with open(mfn, 'w') as f:
+                json.dump(
+                    {
+                        'meta': self.trigger.meta,
+                        'last_meta': self.trigger.last_meta},
+                    f, indent=True, cls=logger.MetaJSONEncoder)
     
     def update(self):
         try:
@@ -226,7 +245,6 @@ class Grabber:
 
         # if first frame
         if self.crop is None:
-            # TODO convert this to a ROI
             self.crop = self.build_crop(im)
 
         # if frame should be checked...

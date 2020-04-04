@@ -1,8 +1,18 @@
 import datetime
+import json
 import os
 import struct
 
 import numpy
+
+
+class MetaJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, numpy.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, datetime.datetime):
+            return obj.__str__()
+        return json.JSONEncoder.default(self, obj)
 
 
 def iter_raw_file(fn):

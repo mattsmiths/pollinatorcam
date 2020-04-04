@@ -25,7 +25,7 @@ Duty cycle limit only during triggered period
 """
 
 import datetime
-import json
+#import json
 import logging
 import time
 import os
@@ -33,15 +33,6 @@ import os
 import numpy
 
 from . import gstrecorder
-
-
-class MetaEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, numpy.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, datetime.datetime):
-            return obj.__str__()
-        return json.JSONEncoder.default(self, obj)
 
 
 def make_allow(insects=False, birds=False, mammals=False):
@@ -171,6 +162,8 @@ class Trigger:
         self.times['rising'] = time.monotonic()
         if not self.active:
             self.activate(self.times['rising'])
+            return True
+        return False
 
     def falling_edge(self):
         self.times['falling'] = time.monotonic()
@@ -178,6 +171,8 @@ class Trigger:
             del self.times['hold_off']
         if not self.active:
             self.activate(self.times['falling'])
+            return True
+        return False
 
     def high(self):
         t = time.monotonic()
@@ -192,6 +187,8 @@ class Trigger:
         else:
             if 'hold_off' in self.times and t >= self.times['hold_off']:
                 self.activate(t)
+                return True
+        return False
 
     def low(self):
         if self.active:
@@ -203,6 +200,7 @@ class Trigger:
                     (t - self.times['falling'] >= self.post_time) and
                     (t - self.times['start'] >= self.min_time)):
                 self.deactivate(t)
+        return False
 
     def set_trigger(self, trigger, meta):
         self.last_meta = self.meta
@@ -210,18 +208,19 @@ class Trigger:
         if self.triggered:
             if trigger:
                 self.meta['state'] = 'high'
-                self.high()
+                r = self.high()
             else:
                 self.meta['state'] = 'falling_edge'
-                self.falling_edge()
+                r = self.falling_edge()
         else:
             if trigger:
                 self.meta['state'] = 'rising_edge'
-                self.rising_edge()
+                r = self.rising_edge()
             else:
                 self.meta['state'] = 'low'
-                self.low()
+                r = self.low()
         self.triggered = trigger
+        return r
 
     def __call__(self, trigger, meta):
         return self.set_trigger(trigger, meta)
@@ -286,6 +285,7 @@ class TriggeredRecording(Trigger):
         self.meta['video_index'] = self.index
         self.meta['camera_name'] = self.name
         vfn = self.video_filename(self.meta)
+        self.meta['filename'] = vfn
         #fn = self.filename_gen(self.index, self.meta)
 
         # TODO wait for stop_saving to finish?
@@ -297,11 +297,11 @@ class TriggeredRecording(Trigger):
         self.filename = vfn
 
         # save meta (and last_meta) data here
-        mfn = os.path.splitext(vfn)[0] + '.json'
-        with open(mfn, 'w') as f:
-            json.dump(
-                {'meta': self.meta, 'last_meta': self.last_meta},
-                f, indent=True, cls=MetaEncoder)
+        #mfn = os.path.splitext(vfn)[0] + '.json'
+        #with open(mfn, 'w') as f:
+        #    json.dump(
+        #        {'meta': self.meta, 'last_meta': self.last_meta},
+        #        f, indent=True, cls=MetaEncoder)
 
         #if self.recorder.recording:
         #    self.next_recorder()
