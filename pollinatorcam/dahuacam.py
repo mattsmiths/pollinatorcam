@@ -546,14 +546,17 @@ def cmdline_run():
         '-P', '--naspassword', type=str, required='password' not in nas,
         help='NAS password')
     parser.add_argument(
-        '-r', '--reboot', action='store_true',
-        help='Reset camera after setting configuration')
+        '-R', '--reboot', action='store_true',
+        help='Only reboot camera')
     parser.add_argument(
         '-u', '--user', default=None,
         help='camera username')
     parser.add_argument(
         '-U', '--nasuser', type=str,
         help='NAS user')
+    parser.add_argument(
+        '-S', '--snaponly', action='store_true',
+        help='Only set snap config')
     parser.add_argument(
         '-v', '--verbose', action='store_true',
         help='Make output more verbose')
@@ -576,10 +579,16 @@ def cmdline_run():
         print("Connected:", cam.ip, cam.user, cam.password)
     n = cam.get_name()
     print("Camera name: %s" % n)
+    if args.reboot:
+        print("Rebooting...")
+        return cam.reboot()
     print("Configuring snapshots: %s, %s" % (args.fps, nas))
     sr = set_snap_config(cam, nas, args.fps)
-    print("Configuring video...")
-    ir = initial_configuration(cam, reboot=False)
+    if not args.snaponly:
+        print("Configuring video...")
+        ir = initial_configuration(cam, reboot=False)
+    else:
+        ir = {}
     ok = True
     for d in (sr, ir):
         for k in d:
