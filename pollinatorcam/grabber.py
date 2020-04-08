@@ -214,7 +214,7 @@ class Grabber:
                 os.makedirs(d)
             mfn = os.path.join(
                 d,
-                '%s_%s.json' % (dt.strftime('%H%M%S'), self.name))
+                '%s_%s.json' % (dt.strftime('%H%M%S_%f'), self.name))
             with open(mfn, 'w') as f:
                 json.dump(
                     {
