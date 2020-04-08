@@ -1,3 +1,17 @@
+"""
+To try for circular buffer
+1) rtspsrc: buffer-mode=2 latency=2000 drop-on-latency=true [and remove all queues], no go
+
+Start of video artifact fix:
+1) set alignment of h265parse to "au" (only output full frames): causes the pipeline to die
+
+flushing?
+rtspjitterbuffer why reset skew correction? seems ok as the buffering supposedly still happens
+jitterbuffer dropping older than base time, only seems to happen at the beginning
+
+all latency shit in rtspsrc seems to do nothing
+"""
+
 import os
 import subprocess
 import sys
@@ -16,11 +30,16 @@ url_string = "rtsp://{user}:{password}@{ip}:554/cam/realmonitor?channel=1&subtyp
 
 cmd_string = (  # TODO configure queue latency/max-size-time/etc?
     #'rtspsrc name=src0 location="{url}" latency=0 tcp-timeout=0 teardown-timeout=0 timeout=0 drop-on-latency=true max-rtcp-rtp-time-offset=-1 max-ts-offset=10000000000 ! '
+    #'rtspsrc name=src0 location="{url}" buffer-mode=2 latency=4000 timeout=10000000 drop-on-latency=true max-rtcp-rtp-time-diff=-1 max-dropout-time=10000 max-misorder-time=10000 ! '
+    #'rtspsrc name=src0 location="{url}" buffer-mode=2 latency=4000 timeout=10000000 drop-on-latency=true max-rtcp-rtp-time-diff=10000 max-ts-offset=0 ! '
     'rtspsrc name=src0 location="{url}" ! '
+    #'rtpjitterbuffer name=buffer0 mode=0 latency=1000 drop-on-latency=true max-rtcp-rtp-time-diff=10000 rtx-next-seqnum=false max-misorder-time=10000 max-dropout-time=10000 ! '
     'capsfilter name=caps0 caps=application/x-rtp,media=video ! '
+    #'queue name=queue0 ! '
     #'queue name=queue0 leaky=2 max-size-bytes=0 max-size-buffers=0 max-size-time=1000000000 ! '
-    'queue name=queue1 max-size-bytes=0 max-size-buffers=0 max-size-time=3000000000 ! '
-    'queue name=queue0 max-size-time=1000000 min-threshold-time=1000000000 ! '  # this is the 'delay'
+    #'queue name=queue1 max-size-bytes=0 max-size-buffers=0 max-size-time=3000000000 ! '
+    #'queue name=queue0 max-size-time=1000000 min-threshold-time=1000000000 ! '  # this is the 'delay'
+    'queue name=queue0 max-size-bytes=0 max-size-buffers=0 leaky=2 silent=true max-size-time=3000000000 min-threshold-time=2000000000 ! '  # this is the 'delay'
     'fakesink name=fakesink0 sync=false '
 )
 
@@ -41,6 +60,7 @@ class Recorder(threading.Thread):
             cmd_string.format(url=self.url))
 
         self.queue = self.pipeline.get_child_by_name("queue0")
+        #self.caps0 = self.pipeline.get_child_by_name("caps0")
         self.fakesink = self.pipeline.get_child_by_name("fakesink0")
 
         self.bus = self.pipeline.get_bus()
@@ -91,16 +111,19 @@ class Recorder(threading.Thread):
         #print("=======================")
         self.depay.set_locked_state(True)
         self.parse.set_locked_state(True)
+        self.parse_caps.set_locked_state(True)
         self.mux.set_locked_state(True)
         self.filesink.set_locked_state(True)
 
         self.depay.set_state(Gst.State.NULL)
         self.parse.set_state(Gst.State.NULL)
+        self.parse_caps.set_state(Gst.State.NULL)
         self.mux.set_state(Gst.State.NULL)
         self.filesink.set_state(Gst.State.NULL)
 
         self.pipeline.remove(self.depay)
         self.pipeline.remove(self.parse)
+        self.pipeline.remove(self.parse_caps)
         self.pipeline.remove(self.mux)
         self.pipeline.remove(self.filesink)
 
@@ -110,6 +133,12 @@ class Recorder(threading.Thread):
         # TODO use GstBin instead
         self.depay = Gst.ElementFactory.make('rtph265depay', 'depay0')
         self.parse = Gst.ElementFactory.make('h265parse', 'parse0')
+        self.parse_caps = Gst.ElementFactory.make('capsfilter', 'caps1')
+        #self.parse_caps.set_property(
+        #    'caps',
+        #    Gst.Caps('video/x-h265, stream-format=byte-stream, alignment=au')
+        #)
+        # TODO set parse caps alignment to au
         self.mux = Gst.ElementFactory.make('mp4mux', 'mux0')
         self.filesink = Gst.ElementFactory.make('filesink', 'filesink0')
         self.filesink.set_property('location', fn)
@@ -122,10 +151,14 @@ class Recorder(threading.Thread):
         #self.filesink.set_property('render-delay', 3 * Gst.SECOND)
         self.filename = fn
 
-        self.pipeline.add(self.depay, self.parse, self.mux, self.filesink)
+        #self.pipeline.add(self.depay, self.parse, self.mux, self.filesink)
+        self.pipeline.add(
+            self.depay, self.parse, self.parse_caps, self.mux, self.filesink)
 
         self.depay.link(self.parse)
-        self.parse.link(self.mux)
+        self.parse.link(self.parse_caps)
+        #self.parse.link(self.mux)
+        self.parse_caps.link(self.mux)
         self.mux.link(self.filesink)
 
     def insert_filesink(self, pad, info, fn):
@@ -141,6 +174,7 @@ class Recorder(threading.Thread):
         pad.link(self.depay.get_static_pad('sink'))
         self.depay.sync_state_with_parent()
         self.parse.sync_state_with_parent()
+        self.parse_caps.sync_state_with_parent()
         self.mux.sync_state_with_parent()
         self.filesink.sync_state_with_parent()
         return Gst.PadProbeReturn.REMOVE  # don't call again
@@ -156,6 +190,7 @@ class Recorder(threading.Thread):
             print("Failed sending eos to insert_fakesink")
 
         self.fakesink = Gst.ElementFactory.make('fakesink', 'fakesink0')
+        self.fakesink.set_property('sync', False)
         self.pipeline.add(self.fakesink)
 
         pad.link(self.fakesink.get_static_pad('sink'))
@@ -168,7 +203,9 @@ class Recorder(threading.Thread):
         #print("++++++++++++++++++++++")
         # get src pad of queue
         src_pad = self.queue.get_static_pad('src')
+        #src_pad = self.caps0.get_static_pad('src')
         src_pad.add_probe(Gst.PadProbeType.IDLE, self.insert_filesink, fn)
+        #GLib.timeout_add(500, self._set_latency)
         return
 
     def stop_saving(self):
@@ -176,7 +213,9 @@ class Recorder(threading.Thread):
         #print("---- Stop saving ----")
         #print("---------------------")
         src_pad = self.queue.get_static_pad('src')
+        #src_pad = self.caps0.get_static_pad('src')
         src_pad.add_probe(Gst.PadProbeType.IDLE, self.insert_fakesink)
+        #GLib.timeout_add(500, self._set_latency)
         return
 
     def stop_pipeline(self, and_join=True):
@@ -210,24 +249,26 @@ class Recorder(threading.Thread):
             except Exception as e:
                 print(i, 'ERROR', e)
     
-    #def periodic_cb(self):
-    #    return GLib.SOURCE_REMOVE
-    #    self.print_pipeline_states()
-    #    return GLib.SOURCE_CONTINUE
+    def periodic_cb(self):
+        #return GLib.SOURCE_REMOVE
+        print(self.pipeline.get_latency())
+        print(self.pipeline.get_child_by_name('src0').get_property('latency'))
+        #self.print_pipeline_states()
+        return GLib.SOURCE_CONTINUE
 
     def _set_latency(self):
         print("Set latency")
-        self.pipeline.set_latency(1 * Gst.SECOND)
+        self.pipeline.set_latency(3 * Gst.SECOND)
         print(self.pipeline.get_latency())
         return GLib.SOURCE_REMOVE
 
     def run(self):
         self.playmode = True
         self.loop = GLib.MainLoop()
-        #GLib.timeout_add(1000, self.periodic_cb)
+        #GLib.timeout_add(500, self.periodic_cb)
 
         self.pipeline.set_state(Gst.State.PLAYING)
-        GLib.timeout_add(500, self._set_latency)
+        #GLib.timeout_add(500, self._set_latency)
         self.loop.run()
         self.playmode = False
 

@@ -273,7 +273,7 @@ class TriggeredRecording(Trigger):
             os.makedirs(d)
         return os.path.join(
             d,
-            '%s_%s.mp4' % (dt.strftime('%H%M%S'), self.name))
+            '%s_%s.mp4' % (dt.strftime('%H%M%S_%f'), self.name))
 
     def activate(self, t):
         super(TriggeredRecording, self).activate(t)
