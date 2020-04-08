@@ -39,7 +39,7 @@ cmd_string = (  # TODO configure queue latency/max-size-time/etc?
     #'queue name=queue0 leaky=2 max-size-bytes=0 max-size-buffers=0 max-size-time=1000000000 ! '
     #'queue name=queue1 max-size-bytes=0 max-size-buffers=0 max-size-time=3000000000 ! '
     #'queue name=queue0 max-size-time=1000000 min-threshold-time=1000000000 ! '  # this is the 'delay'
-    'queue name=queue0 max-size-bytes=0 max-size-buffers=0 leaky=2 silent=true max-size-time=3000000000 min-threshold-time=2000000000 ! '  # this is the 'delay'
+    'queue name=queue0 max-size-bytes=0 max-size-buffers=0 leaky=2 silent=true max-size-time=2000000000 min-threshold-time=1500000000 ! '  # this is the 'delay'
     'fakesink name=fakesink0 sync=false '
 )
 
