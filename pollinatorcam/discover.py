@@ -111,6 +111,9 @@ def check_if_camera(ip):
         n = dc.get_name()
         logging.debug("Camera returned name: %s", n)
         mn = dahuacam.mac_address_to_name(dc)
+        if len(n) != 12:
+            logging.error("Camera name isn't 12 chars")
+            return None
         logging.debug("Camera name from mac: %s", mn)
         if mn != n:
             logging.error(
