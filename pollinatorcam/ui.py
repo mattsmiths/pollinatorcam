@@ -17,6 +17,7 @@ Functions
 """
 
 import datetime
+import glob
 import shutil
 import os
 
@@ -32,7 +33,9 @@ app = flask.Flask('pcam')
 
 @app.route("/", methods=["GET"])
 def index():
-    return ""
+    # TODO fix this, make it a relative path
+    path = '/home/pi/r/cbs-ntcore/pollinatorcam/index.html'
+    return flask.send_file(path, mimetype='text/html')
 
 
 @app.route("/temperature", methods=["GET"])
@@ -52,7 +55,12 @@ def disk_info():
 
 
 @app.route("/cameras", methods=["GET"])
-def camera_status():
+@app.route("/cameras/<date>", methods=["GET"])
+def camera_list(date=None):
+    if date is None:
+        date = datetime.datetime.now()
+
+    ts = date.strftime('%y%m%d')
     # load config key=ip, value=name [or False if not a camera]
     cfg = discover.load_cascaded_config()
     ips_to_names = {k: cfg[k] for k in cfg if isinstance(cfg[k], str)}
@@ -60,19 +68,35 @@ def camera_status():
     # get systemd status and uptime of all ips
     service_states = discover.status_of_all_camera_services()
 
-    cams = {}
+    detections_path = os.path.join(grabber.data_dir, 'detections')
+
+    cams = []
     for ip in ips_to_names:
         s = service_states.get(ip, {})
-        cams[ip] = {
-            'name': ips_to_names[ip],
+        name = ips_to_names[ip]
+        detections = sorted(glob.glob(os.path.join(
+            detections_path,
+            name,
+            ts,
+            '*',
+        )))
+        cams.append({
+            'ip': ip,
+            'name': name,
             'active': s.get('Active', False),
             'uptime': s.get('Uptime', -1),
-        }
+            'detections': detections,
+        })
+    cams.sort(key=lambda c: c['name'])
     return flask.jsonify(cams)
 
 
+# TODO include optional time?
 @app.route("/snapshot/<name>", methods=["GET"])
-def snapshot(name):
+@app.route("/snapshot/<name>/<date>", methods=["GET"])
+def snapshot(name, date=None):
+    if date is None:
+        date = datetime.datetime.now()
     path = os.path.join(grabber.data_dir, name)
     # get most recent day
     path = os.path.join(

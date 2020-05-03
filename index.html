@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Pollinator Camera</title>
+  <script src="https://unpkg.com/vue"></script>
+</head>
+<body>
+  <div id="vm">
+    <!-- status bar -->
+    <!--<span>Temp:</span>-->
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 30 30"
+      width=30
+      height=30
+    >
+      <rect
+        v-if="temperature < 60"
+        rx=4 ry=4 width=30 height=30
+        style="fill:lightcyan;stroke:black;stroke-width:1" />
+      <rect
+        v-else
+        rx=4 ry=4 width=30 height=30
+        style="fill:tomato" />
+      <text
+        x=5 y=20 fill="black">
+        {{ Math.round(temperature) }}
+      </text>
+    </svg>
+    <!--<span>Disk:</span>-->
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 300 30"
+      width=300
+      height=30
+    >
+      <rect
+        rx=4 ry=4 width=300 height=30
+        style="fill:lightcyan;stroke:black;stroke-width:1" />
+      <rect
+        rx=4 ry=4 :width="300 * disk_usage.used / disk_usage.total" height=30
+        style="fill:tomato" />
+      <text
+        x=5 y=20 fill="black">
+        {{ (100 * disk_usage.used / disk_usage.total).toFixed(2) + '%' }}
+      </text>
+    </svg>
+    <!-- TODO date dropdown -->
+
+    <!--Disk_usage: Total {{ disk_usage.total }}, Used {{ disk_usage.used }}, Free {{ disk_usage.free }}-->
+
+    <!-- cameras -->
+    <camera-view
+      inline-template
+      v-for="camera in cameras"
+      :key="camera.name"
+      v-bind="camera"
+    >
+      <div class="camera-view">
+        <!--<img v-bind:href="'http://' + window.location.host + '/snapshot/' + name"></img>-->
+        <img
+          v-if="active"
+          :src="'/snapshot/' + name"
+          style="width: 300px; float:left; border-color:lightcyan"
+          border=5
+        ></img>
+        <img
+          v-else
+          :src="'/snapshot/' + name"
+          style="width: 300px; float:left; border-color:tomato"
+          border=5
+        ></img>
+        <!--<span>{{ ip }}:{{ name }}[{{ Math.floor(uptime) }}]</span>-->
+        <div>IP address = {{ ip }}</div>
+        <div>Name/MAC = {{ name }}</div>
+        <div>Up for [{{
+          uptime >= 86400 ? Math.floor(uptime / 86400) + ' days' :
+          uptime >= 3600 ? Math.floor(uptime / 3600) + ' hours' :
+          uptime >= 60 ? Math.floor(uptime / 60) + ' minutes' :
+          Math.floor(uptime) + ' seconds'
+        }}]</div>
+        <div>N Detections = {{ detections.length }}</div>
+        <!-- TODO detections... -->
+        <div style="clear:left"></div>
+      </div>
+    </camera-view>
+    <!--
+    <camera-view
+      v-for="camera in cameras"
+      v-bind:key="camera.name"
+      v-bind:ip="camera.ip"
+      v-bind:name="camera.name"
+      v-bind:uptime="camera.uptime"
+    ></camera-view>
+    -->
+      <!--
+      <li v-for="camera in cameras">
+        <span v-if="camera.active" style="color: green">Active</span>
+        <span v-if="!camera.active" style="color: red">INACTIVE</span>
+        {{ camera.ip }}:{{ camera.name }}[{{ Math.floor(camera.uptime) }}]
+      </li>
+      -->
+  </div>
+
+  <script>
+    sync = function () {
+      vm = this;
+      base = "http://" + window.location.host;
+      fetch(base + '/cameras').then(function(response) {
+        if (response.status != 200) return;
+        response.json().then(function(data) {
+          vm.cameras = data;
+        });
+      });
+      fetch(base + '/temperature').then(function(response) {
+        if (response.status != 200) return;
+        response.json().then(function(data) {
+          vm.temperature = data;
+        });
+      });
+      fetch(base + '/disk_usage').then(function(response) {
+        if (response.status != 200) return;
+        response.json().then(function(data) {
+          vm.disk_usage = data;
+        });
+      });
+    };
+
+    Vue.component('camera-view', {
+      props: ['ip', 'name', 'uptime', 'image', 'active', 'detections'],
+      template: '<div class="camera-view"></div>',
+    });
+
+    var vm = new Vue({
+      el: '#vm',
+      data: {
+        cameras: {},
+        temperature: -1.0,
+        disk_usage: {
+          total: -1,
+          used: -1,
+          free: -1,
+        },
+      },
+      created: sync,
+    })
+  </script>
+</body>
+</html>
