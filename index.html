@@ -9,26 +9,22 @@
   <div id="vm">
     <!-- status bar -->
     <!--<span>Temp:</span>-->
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 30 30"
-      width=30
-      height=30
-    >
-      <rect
-        v-if="temperature < 60"
-        rx=4 ry=4 width=30 height=30
-        style="fill:lightcyan;stroke:black;stroke-width:1" />
-      <rect
-        v-else
-        rx=4 ry=4 width=30 height=30
-        style="fill:tomato" />
-      <text
-        x=5 y=20 fill="black">
-        {{ Math.round(temperature) }}
-      </text>
-    </svg>
+    <span
+      :style="
+        temperature < 60 ?
+        {'background-color': 'lightcyan'} :
+        {'background-color': 'tomato'}">
+      Core Temperature: {{ Math.round(temperature) }}C
+    </span>
+    <!--
+        :style="{'background': linear-gradient(tomato 0%, tomato {{ (100 * disk_usage.used / disk_usage.total) + '%' }}, lightcyan {{ (100 * disk_usage.used / disk_usage.total) + '%' }}, lightcyan 100%);}">  --> 
+        <!--:style="{'background-color': disk_gradient; 'width': 300}"> -->
+    <span
+      :style="disk_usage_style"> 
+      Disk Used: {{ (100 * disk_usage.used / disk_usage.total).toFixed(2) + '%' }}
+    </span>
     <!--<span>Disk:</span>-->
+    <!--
     <svg
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 300 30"
@@ -46,6 +42,7 @@
         {{ (100 * disk_usage.used / disk_usage.total).toFixed(2) + '%' }}
       </text>
     </svg>
+    -->
     <!-- TODO date dropdown -->
 
     <!--Disk_usage: Total {{ disk_usage.total }}, Used {{ disk_usage.used }}, Free {{ disk_usage.free }}-->
@@ -74,12 +71,7 @@
         <!--<span>{{ ip }}:{{ name }}[{{ Math.floor(uptime) }}]</span>-->
         <div>IP address = {{ ip }}</div>
         <div>Name/MAC = {{ name }}</div>
-        <div>Up for [{{
-          uptime >= 86400 ? Math.floor(uptime / 86400) + ' days' :
-          uptime >= 3600 ? Math.floor(uptime / 3600) + ' hours' :
-          uptime >= 60 ? Math.floor(uptime / 60) + ' minutes' :
-          Math.floor(uptime) + ' seconds'
-        }}]</div>
+        <div>Up for [{{ uptime_string }}]</div>
         <div>N Detections = {{ detections.length }}</div>
         <!-- TODO detections... -->
         <div style="clear:left"></div>
@@ -104,7 +96,7 @@
   </div>
 
   <script>
-    sync = function () {
+    sync = function() {
       vm = this;
       base = "http://" + window.location.host;
       fetch(base + '/cameras').then(function(response) {
@@ -130,6 +122,31 @@
     Vue.component('camera-view', {
       props: ['ip', 'name', 'uptime', 'image', 'active', 'detections'],
       template: '<div class="camera-view"></div>',
+      computed: {
+        uptime_string: function() {
+          denom = 1;
+          unit = ' seconds';
+          if (this.uptime >= 86400) {
+            denom = 86400;
+            unit = ' days';
+          } else if (this.uptime >= 3600) {
+            denom = 3600;
+            unit = ' hours';
+          } else if (this.uptime >= 60) {
+            denom = 60;
+            unit = ' minutes';
+          };
+          return Math.floor(this.uptime / denom) + unit;
+        },
+        disk_usage_style: function() {
+          perc = Math.round(this.disk_usage.used / this.disk_usage.total);
+          return {
+            background: 'red',
+          };
+          return '{"background": linear-gradient(to right, tomato 0%, tomato ' + perc + '%, lightcyan ' + perc + '%, lightcyan 100%)}';
+          return '{"background": linear-gradient(to right, tomato 0%, tomato ' + perc + '%, lightcyan ' + perc + '%, lightcyan 100%)}';
+        },
+      },
     });
 
     var vm = new Vue({
@@ -141,6 +158,18 @@
           total: -1,
           used: -1,
           free: -1,
+        },
+      },
+      computed: {
+        disk_usage_style: function() {
+          perc = 100 * (this.disk_usage.used / this.disk_usage.total);
+          return {
+            display: 'inline-block',
+            width: '250px',
+            background: 'linear-gradient(to right, tomato 0%, tomato ' + perc + '%, lightcyan ' + perc + '%, lightcyan 100%)',
+          };
+          return '{"background": linear-gradient(to right, tomato 0%, tomato ' + perc + '%, lightcyan ' + perc + '%, lightcyan 100%)}';
+          return '{"background": linear-gradient(to right, tomato 0%, tomato ' + perc + '%, lightcyan ' + perc + '%, lightcyan 100%)}';
         },
       },
       created: sync,
