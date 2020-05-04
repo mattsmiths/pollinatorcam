@@ -1,9 +1,8 @@
-h5py
-numpy
-pygst
-cv2
-PIL
-requests
+# numpy
+# pygst
+# cv2
+# PIL
+# requests
 # tfliteserve
 # flask
 # uwsgi

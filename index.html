@@ -8,7 +8,6 @@
 <body>
   <div id="vm">
     <!-- status bar -->
-    <!--<span>Temp:</span>-->
     <span
       :style="
         temperature < 60 ?
@@ -16,36 +15,20 @@
         {'background-color': 'tomato'}">
       Core Temperature: {{ Math.round(temperature) }}C
     </span>
-    <!--
-        :style="{'background': linear-gradient(tomato 0%, tomato {{ (100 * disk_usage.used / disk_usage.total) + '%' }}, lightcyan {{ (100 * disk_usage.used / disk_usage.total) + '%' }}, lightcyan 100%);}">  --> 
-        <!--:style="{'background-color': disk_gradient; 'width': 300}"> -->
     <span
       :style="disk_usage_style"> 
       Disk Used: {{ (100 * disk_usage.used / disk_usage.total).toFixed(2) + '%' }}
     </span>
-    <!--<span>Disk:</span>-->
+    <input type="date" id="datesel" onchange="sync(this);"/>
     <!--
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 300 30"
-      width=300
-      height=30
-    >
-      <rect
-        rx=4 ry=4 width=300 height=30
-        style="fill:lightcyan;stroke:black;stroke-width:1" />
-      <rect
-        rx=4 ry=4 :width="300 * disk_usage.used / disk_usage.total" height=30
-        style="fill:tomato" />
-      <text
-        x=5 y=20 fill="black">
-        {{ (100 * disk_usage.used / disk_usage.total).toFixed(2) + '%' }}
-      </text>
-    </svg>
+    <form>
+      <label>
+        Select day:
+        <input type="date" onchange="sync(sel)"/>
+      </label>
+    </form>
     -->
     <!-- TODO date dropdown -->
-
-    <!--Disk_usage: Total {{ disk_usage.total }}, Used {{ disk_usage.used }}, Free {{ disk_usage.free }}-->
 
     <!-- cameras -->
     <camera-view
@@ -55,7 +38,6 @@
       v-bind="camera"
     >
       <div class="camera-view">
-        <!--<img v-bind:href="'http://' + window.location.host + '/snapshot/' + name"></img>-->
         <img
           v-if="active"
           :src="'/snapshot/' + name"
@@ -68,7 +50,6 @@
           style="width: 300px; float:left; border-color:tomato"
           border=5
         ></img>
-        <!--<span>{{ ip }}:{{ name }}[{{ Math.floor(uptime) }}]</span>-->
         <div>IP address = {{ ip }}</div>
         <div>Name/MAC = {{ name }}</div>
         <div>Up for [{{ uptime_string }}]</div>
@@ -77,29 +58,19 @@
         <div style="clear:left"></div>
       </div>
     </camera-view>
-    <!--
-    <camera-view
-      v-for="camera in cameras"
-      v-bind:key="camera.name"
-      v-bind:ip="camera.ip"
-      v-bind:name="camera.name"
-      v-bind:uptime="camera.uptime"
-    ></camera-view>
-    -->
-      <!--
-      <li v-for="camera in cameras">
-        <span v-if="camera.active" style="color: green">Active</span>
-        <span v-if="!camera.active" style="color: red">INACTIVE</span>
-        {{ camera.ip }}:{{ camera.name }}[{{ Math.floor(camera.uptime) }}]
-      </li>
-      -->
   </div>
 
   <script>
-    sync = function() {
+    var sync = function(date_selector) {
+      if (date_selector != undefined) {
+        date_str = '/' + date_selector.value;
+      } else {
+        date_str = '';
+      };
+      console.log({sync: date_selector});
       vm = this;
       base = "http://" + window.location.host;
-      fetch(base + '/cameras').then(function(response) {
+      fetch(base + '/cameras' + date_str).then(function(response) {
         if (response.status != 200) return;
         response.json().then(function(data) {
           vm.cameras = data;

@@ -28,7 +28,6 @@ from . import grabber
 
 
 app = flask.Flask('pcam')
-#app.config["DEBUG"] = True
 
 
 @app.route("/", methods=["GET"])
@@ -59,6 +58,11 @@ def disk_info():
 def camera_list(date=None):
     if date is None:
         date = datetime.datetime.now()
+    else:
+        try:
+            date = datetime.datetime.fromisoformat(date)
+        except ValueError:
+            return flask.abort(400)
 
     ts = date.strftime('%y%m%d')
     # load config key=ip, value=name [or False if not a camera]
@@ -91,27 +95,42 @@ def camera_list(date=None):
     return flask.jsonify(cams)
 
 
-# TODO include optional time?
 @app.route("/snapshot/<name>", methods=["GET"])
+@app.route("/snapshot/<name>/", methods=["GET"])
 @app.route("/snapshot/<name>/<date>", methods=["GET"])
 def snapshot(name, date=None):
+    most_recent = True
     if date is None:
         date = datetime.datetime.now()
-    path = os.path.join(grabber.data_dir, name)
+    else:
+        try:
+            date = datetime.datetime.fromisoformat(date)
+        except ValueError:
+            return flask.abort(400)
+        most_recent = False
+
     # get most recent day
     path = os.path.join(
-        path,
-        max([sd for sd in os.listdir(path) if '-' in sd]),
+        grabber.data_dir,
+        name,
+        date.strftime('%Y-%m-%d'),
         'pic_001')
-    # get most recent image
-    path = os.path.join(path, max(os.listdir(path)))
-    return flask.send_file(path, mimetype='image/jpg')
+    if most_recent:
+        fn_glob = os.path.join(path, '*.jpg')
+    else:
+        fn_glob = os.path.join(path, date.strftime('%H.%M') + '*.jpg')
+    fns = sorted(glob.glob(fn_glob))
+    if len(fns) == 0:
+        return flask.abort(404)
+    return flask.send_file(fns[-1], mimetype='image/jpg')
 
 
 def run_ui(**kwargs):
     kwargs['host'] = kwargs.get('host', '0.0.0.0')
     kwargs['port'] = kwargs.get('port', 5000)
     print("Running on %s:%i" % (kwargs['host'], kwargs['port']))
+    #app.config["DEBUG"] = True
+    #app.debug = True
     app.run(**kwargs)
 
 
