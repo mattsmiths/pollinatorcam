@@ -54,6 +54,7 @@ def disk_info():
 
 
 @app.route("/cameras", methods=["GET"])
+@app.route("/cameras/", methods=["GET"])
 @app.route("/cameras/<date>", methods=["GET"])
 def camera_list(date=None):
     if date is None:

@@ -67,13 +67,29 @@
       } else {
         date_str = '';
       };
-      console.log({sync: date_selector});
-      vm = this;
+      //vm = this;
       base = "http://" + window.location.host;
       fetch(base + '/cameras' + date_str).then(function(response) {
         if (response.status != 200) return;
         response.json().then(function(data) {
           vm.cameras = data;
+          /*
+          if (vm.cameras.length != 0) {
+            for (i in data) {
+              c = data[i];
+              n = c.name;
+              oi = vm.cameras.findIndex(function (oc) {return oc.name == n;});
+              if (oi == -1) {
+                vm.cameras.push(c);
+              } else {
+                Vue.set(vm.cameras, oi, c);
+              };
+            //Vue.set(vm, 'cameras', data);
+            };
+          } else {
+            vm.cameras = data;
+          };
+          */
         });
       });
       fetch(base + '/temperature').then(function(response) {
@@ -123,7 +139,7 @@
     var vm = new Vue({
       el: '#vm',
       data: {
-        cameras: {},
+        cameras: [],
         temperature: -1.0,
         disk_usage: {
           total: -1,
