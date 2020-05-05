@@ -19,16 +19,7 @@
       :style="disk_usage_style"> 
       Disk Used: {{ (100 * disk_usage.used / disk_usage.total).toFixed(2) + '%' }}
     </span>
-    <input type="date" id="datesel" onchange="sync(this);"/>
-    <!--
-    <form>
-      <label>
-        Select day:
-        <input type="date" onchange="sync(sel)"/>
-      </label>
-    </form>
-    -->
-    <!-- TODO date dropdown -->
+    <input type="date" id="datesel" @change="sync"/>
 
     <!-- cameras -->
     <camera-view
@@ -40,77 +31,120 @@
       <div class="camera-view">
         <img
           v-if="active"
-          :src="'/snapshot/' + name"
+          :src="snapshot_url"
           style="width: 300px; float:left; border-color:lightcyan"
           border=5
         ></img>
         <img
           v-else
-          :src="'/snapshot/' + name"
+          :src="snapshot_url"
           style="width: 300px; float:left; border-color:tomato"
           border=5
         ></img>
+        <!-- TODO links to overview, data, etc -->
         <div>IP address = {{ ip }}</div>
-        <div>Name/MAC = {{ name }}</div>
+        <div><a :href="stills_url">Name/MAC = {{ name }}</a></div>
         <div>Up for [{{ uptime_string }}]</div>
-        <div>N Detections = {{ detections.length }}</div>
-        <!-- TODO detections... -->
+        <div><a :href="detections_url">N Detections = {{ detections.length }}</a></div>
+        <div><a :href="videos_url">Videos</a></div>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 720 30"
+          width=720
+          height=30
+          @click="select_time"
+        >
+          <rect x=0 y=0 width=720 height=20 style="fill:none;stroke:black;stroke-width:1"></rect>
+          <!-- TODO detection position by minute -->
+          <rect
+            v-for="detection in detections"
+            :x="detection_to_x(detection)" y=0
+            width=4 height=30
+            style="fill:green;stroke:none"
+            @click="show_detection(detection)"
+          ></rect>
+          <rect
+            v-if="minute > -1"
+            :x="minute / 2" y=0
+            width=4 height=30
+            style="fill:black;stroke:none"
+          ></rect>
+        </svg>
+        <!-- TODO current selected detection -->
+        <div v-if="detection.filename !== ''">
+          Video: <a :href="strip_mnt(detection.meta.filename)">{{ strip_mnt(detection.meta.filename) }}</a><br />
+          Classes: <span v-for="d in detection.meta.detections">{{ d[0] }}</span>
+        </div>
         <div style="clear:left"></div>
       </div>
     </camera-view>
   </div>
 
   <script>
-    var sync = function(date_selector) {
-      if (date_selector != undefined) {
-        date_str = '/' + date_selector.value;
-      } else {
-        date_str = '';
-      };
-      //vm = this;
-      base = "http://" + window.location.host;
-      fetch(base + '/cameras' + date_str).then(function(response) {
-        if (response.status != 200) return;
-        response.json().then(function(data) {
-          vm.cameras = data;
-          /*
-          if (vm.cameras.length != 0) {
-            for (i in data) {
-              c = data[i];
-              n = c.name;
-              oi = vm.cameras.findIndex(function (oc) {return oc.name == n;});
-              if (oi == -1) {
-                vm.cameras.push(c);
-              } else {
-                Vue.set(vm.cameras, oi, c);
-              };
-            //Vue.set(vm, 'cameras', data);
-            };
-          } else {
-            vm.cameras = data;
-          };
-          */
-        });
-      });
-      fetch(base + '/temperature').then(function(response) {
-        if (response.status != 200) return;
-        response.json().then(function(data) {
-          vm.temperature = data;
-        });
-      });
-      fetch(base + '/disk_usage').then(function(response) {
-        if (response.status != 200) return;
-        response.json().then(function(data) {
-          vm.disk_usage = data;
-        });
-      });
-    };
-
     Vue.component('camera-view', {
-      props: ['ip', 'name', 'uptime', 'image', 'active', 'detections'],
+      props: ['ip', 'name', 'uptime', 'image', 'active', 'detections', 'day'],
+      data: function () {
+        return {
+          minute: -1,
+          detection: {
+            meta: {
+              detections: [],
+              filename: '',
+            },
+          },
+        }
+      },
       template: '<div class="camera-view"></div>',
+      methods: {
+        strip_mnt(path) {
+          return '/' + path.split('/').slice(2).join('/');
+        },
+        detection_to_x(detection) {
+          ts = detection.split('_')[0].split('/').slice(-1)[0];
+          return (Number(ts.slice(0, 2)) * 60 + Number(ts.slice(2, 4))) / 2;
+        },
+        show_detection(detection) {
+          console.log({show_detection: detection});
+          url = '/' + detection.split('/').slice(2).join('/');
+          fetch(url).then((response) => {
+            if (response.status !== 200) return;
+            response.json().then((data) => {
+              this.detection = data;
+            });
+          });
+        },
+        select_time(evt) {
+          svg = evt.currentTarget;
+          pt = svg.createSVGPoint();
+          pt.x = evt.clientX;
+          pt.y = evt.clientY;
+          cpt = pt.matrixTransform(svg.getScreenCTM().inverse());
+          // TODO base off of actual width
+          this.minute = cpt.x * 2;
+          hr = Math.floor(this.minute / 60);
+          min = this.minute - (hr * 60);
+        },
+      },
       computed: {
-        uptime_string: function() {
+        timestamp() {
+          if (this.minute == -1) return this.day;
+          hr = Math.floor(this.minute / 60);
+          min = this.minute - (hr * 60);
+          return `${this.day}T${(hr + '').padStart(2, '0')}:${(min + '').padStart(2, '0')}`;
+        },
+        snapshot_url() {
+          return `/snapshot/${this.name}/${this.timestamp}`;
+        },
+        stills_url() {
+          return `/data/${this.name}/${this.day}/pic_001/`;
+        },
+        detections_url() {
+          return `/data/detections/${this.name}/${this.day.replace(/-/g, '').slice(2, 8)}/`;
+        },
+        videos_url() {
+          return `/data/videos/${this.name}/${this.day.replace(/-/g, '').slice(2, 8)}/`;
+        },
+        uptime_string() {
           denom = 1;
           unit = ' seconds';
           if (this.uptime >= 86400) {
@@ -125,20 +159,13 @@
           };
           return Math.floor(this.uptime / denom) + unit;
         },
-        disk_usage_style: function() {
-          perc = Math.round(this.disk_usage.used / this.disk_usage.total);
-          return {
-            background: 'red',
-          };
-          return '{"background": linear-gradient(to right, tomato 0%, tomato ' + perc + '%, lightcyan ' + perc + '%, lightcyan 100%)}';
-          return '{"background": linear-gradient(to right, tomato 0%, tomato ' + perc + '%, lightcyan ' + perc + '%, lightcyan 100%)}';
-        },
       },
     });
 
     var vm = new Vue({
       el: '#vm',
       data: {
+        day: '',
         cameras: [],
         temperature: -1.0,
         disk_usage: {
@@ -148,19 +175,49 @@
         },
       },
       computed: {
-        disk_usage_style: function() {
+        disk_usage_style() {
           perc = 100 * (this.disk_usage.used / this.disk_usage.total);
           return {
             display: 'inline-block',
             width: '250px',
-            background: 'linear-gradient(to right, tomato 0%, tomato ' + perc + '%, lightcyan ' + perc + '%, lightcyan 100%)',
+            background: `linear-gradient(to right, tomato 0%, tomato ${perc}%, lightcyan ${perc}%, lightcyan 100%)`,
           };
-          return '{"background": linear-gradient(to right, tomato 0%, tomato ' + perc + '%, lightcyan ' + perc + '%, lightcyan 100%)}';
-          return '{"background": linear-gradient(to right, tomato 0%, tomato ' + perc + '%, lightcyan ' + perc + '%, lightcyan 100%)}';
         },
       },
-      created: sync,
-    })
+      methods: {
+        sync(evt) {
+          console.log({sync: [this, evt]});
+          if (evt !== undefined) {
+            this.day = evt.target.value;
+          };
+          if (this.day.length > 0) {
+            date_str = '/' + this.day;
+          } else {
+            date_str = '';
+          };
+          base = "http://" + window.location.host;
+          fetch(base + '/cameras' + date_str).then((response) => {
+            if (response.status !== 200) return;
+            response.json().then((data) => {
+              this.cameras = data;
+            });
+          });
+          fetch(base + '/temperature').then((response) => {
+            if (response.status !== 200) return;
+            response.json().then((data) => {
+              this.temperature = data;
+            });
+          });
+          fetch(base + '/disk_usage').then((response) => {
+            if (response.status !== 200) return;
+            response.json().then((data) => {
+              this.disk_usage = data;
+            });
+          });
+        },
+      },
+      created() {return this.sync()},
+    });
   </script>
 </body>
 </html>

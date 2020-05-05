@@ -59,7 +59,9 @@ def disk_info():
 def camera_list(date=None):
     if date is None:
         date = datetime.datetime.now()
+        day = date.strftime('%Y-%m-%d')
     else:
+        day = date
         try:
             date = datetime.datetime.fromisoformat(date)
         except ValueError:
@@ -86,6 +88,7 @@ def camera_list(date=None):
             '*',
         )))
         cams.append({
+            'day': day,
             'ip': ip,
             'name': name,
             'active': s.get('Active', False),
@@ -104,11 +107,14 @@ def snapshot(name, date=None):
     if date is None:
         date = datetime.datetime.now()
     else:
+        # if no ':' in date, no minute was defined
+        most_recent &= ':' not in date
         try:
             date = datetime.datetime.fromisoformat(date)
         except ValueError:
             return flask.abort(400)
-        most_recent = False
+        # if date was today, grab most recent
+        most_recent &= date.date() == datetime.datetime.now().date()
 
     # get most recent day
     path = os.path.join(
