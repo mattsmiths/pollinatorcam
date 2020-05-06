@@ -160,7 +160,15 @@ def set_continuous_video():
     pass
 
 
-def set_snap_config(c, nas, fps):
+def set_snap_config(c, nas=None, fps=1/60.):
+    if nas is None:
+        nas = {'user': 'ipcam', 'enable': True}
+    if 'ip' not in nas:
+        nas['ip'] = get_host_ip(c.ip)
+    if ('user' not in nas) and ('PCAM_NAS_USER' in os.environ):
+        nas['user'] = os.environ['PCAM_NAS_USER']
+    if ('password' not in nas) and ('PCAM_NAS_PASSWORD' in os.environ):
+        nas['password'] = os.environ['PCAM_NAS_PASSWORD']
     for k in ('ip', 'user', 'password'):
         assert k in nas, "nas config missing %s" % k
 

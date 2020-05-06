@@ -149,6 +149,18 @@ def verify_camera_service(ip):
         return True
 
 
+def verify_nas_config(ip):
+    logging.debug("Checking NAS config for %s", ip)
+    dc = DahuaCamera(ip)
+    nas_ip = dc.get_config('NAS[0].Address').strip().split('=')[1]
+    logging.debug("NAS host ip = %s", nas_ip)
+    hip = dahuacam.get_host_ip(ip)
+    if nas_ip != hip:
+        logging.info("Setting NAS host ip to %s for %s", hip, ip)
+        dahuacam.set_snap_config(
+            dc, {'user': 'ipcam', 'enable': True, 'ip': hip})
+
+
 def status_of_all_camera_services():
     cmd = (
         "sudo systemctl show "
@@ -175,9 +187,11 @@ def check_cameras(cidr=None):
     prevent_save = False
     try:
         config = load_cascaded_config()
-    except ConfigLoadError:
-        # don't overwrite config
+    except ConfigLoadError as e:
+        # if failed to load config don't overwrite
+        logging.warning("Failed to load config: %s", e)
         prevent_save = True
+        # use blank (scan all ips)
         config = {}
 
     # only save if config has changed
@@ -207,15 +221,23 @@ def check_cameras(cidr=None):
 
     # check all cameras have running services
     for ip in list(config.keys()):
-        if config[ip] is not False:
+        if config[ip] is not False:  # this is a camera
             r = True
             try:
                 r = verify_camera_service(ip)
+                # TODO cache this for ui so it doesn't have to poll services
             except Exception as e:
                 logging.warning(
                     "Failed verify_camera_service(%s): %s",
                     ip, e)
                 r = False
+            # verify NAS ip points to this computer
+            try:
+                verify_nas_config(ip)
+            except Exception as e:
+                logging.warning(
+                    "Failed verify_nas_config(%s): %s",
+                    ip, e)
             if not r:
                 # failed to start service, delete from config
                 # to allow additional attempts at starting
