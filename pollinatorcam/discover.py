@@ -151,7 +151,7 @@ def verify_camera_service(ip):
 
 def verify_nas_config(ip):
     logging.debug("Checking NAS config for %s", ip)
-    dc = DahuaCamera(ip)
+    dc = dahuacam.DahuaCamera(ip)
     nas_ip = dc.get_config('NAS[0].Address').strip().split('=')[1]
     logging.debug("NAS host ip = %s", nas_ip)
     hip = dahuacam.get_host_ip(ip)
