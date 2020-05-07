@@ -44,7 +44,7 @@
     >
       <div
         class="camera-view"
-        :style="selected ? {background: 'lightgreen'} : {background: 'white'}">
+        :style="selected ? {background: '#e9fbe9'} : {background: 'white'}">
         <img
           v-if="active"
           :id="name + 'img'"
@@ -63,7 +63,6 @@
           @mousemove="zoom"
           @mouseout="zoom"
         ></img>
-        <!-- TODO links to overview, data, etc -->
         <div>IP address = {{ ip }}</div>
         <div><a :href="stills_url">Name/MAC = {{ name }}</a></div>
         <div>Up for [{{ uptime_string }}]</div>
@@ -124,6 +123,7 @@
         'selected', 'detection_index'],
       data: function () {
         return {
+          zoomed: false,
           minute: -1,
           detection: {
             meta: {
@@ -135,6 +135,11 @@
       },
       template: '<div class="camera-view"></div>',
       watch: {
+        selected: function (val) {
+	  if (!val) return;
+          img = document.getElementById(this.name + "img");
+          window.scrollTo(0, img.offsetTop);
+        },
         detection_index: function (val) {
           this.show_detection(this.detections[val]);
         },
@@ -145,16 +150,23 @@
           return (d.getHours() * 60 + d.getMinutes()) / 2 + 'px';
         },
         zoom(evt) {
-          //console.log({zoom: evt});
+          console.log({zoom: evt});
           el = document.getElementById("overlay");
+          if (evt === undefined) {
+            if (el.style.display === "none") return;
+            if (!this.zoomed) return;
+            el.style.backgroundImage = "url(" + this.snapshot_url + ")";
+          };
           if (evt.type === "mouseout") {
+            this.zoomed = false;
             el.style.display = "none";
             return;
           };
+          this.zoomed = true;
           img = document.getElementById(this.name + "img");
           el.style.left = img.offsetLeft + img.offsetWidth + 'px';
           y = img.offsetTop;
-          if (y + el.offsetHeight >= window.innerHeight) {
+          if (y + el.offsetHeight >= document.body.clientHeight) {
             y -= (el.offsetHeight - img.offsetHeight);
           };
           el.style.top = y + 'px';
@@ -182,6 +194,7 @@
           });
           ts = detection.split("_")[0].split("/").slice(-1)[0]
           this.minute = Number(ts.slice(0, 2)) * 60 + Number(ts.slice(2, 4));
+          this.zoom();
         },
         select_time(evt) {
           svg = evt.currentTarget;
