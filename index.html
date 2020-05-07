@@ -85,6 +85,13 @@
             <rect x=0 y=0 width=1 height=30 style="fill:lightgray;stroke:none"/>
           </pattern>
           <rect x=30 y=0 width=690 height=30 fill="url(#ticks)"/>
+          <rect
+            v-if="this.$parent.day === ''"
+            :x="now_x()"
+            y=0
+            width=2 height=30
+            style="fill:orange"
+          />
           <text x=182 y=15 font-size="12px">6</text>
           <text x=362 y=15 font-size="12px">12</text>
           <text x=542 y=15 font-size="12px">18</text>
@@ -128,6 +135,10 @@
       },
       template: '<div class="camera-view"></div>',
       methods: {
+        now_x() {
+          d = new Date();
+          return (d.getHours() * 60 + d.getMinutes()) / 2 + 'px';
+        },
         zoom(evt) {
           //console.log({zoom: evt});
           el = document.getElementById("overlay");
@@ -137,12 +148,15 @@
           };
           img = document.getElementById(this.name + "img");
           el.style.left = img.offsetLeft + img.offsetWidth + 'px';
-          el.style.top = img.offsetTop + 'px';
+          y = img.offsetTop;
+          if (y + el.offsetHeight >= window.innerHeight) {
+            y -= (el.offsetHeight - img.offsetHeight);
+          };
+          el.style.top = y + 'px';
           el.style.display = "inline-block";
           el.style.backgroundImage = "url(" + this.snapshot_url + ")";
           posX = evt.offsetX ? (evt.offsetX) : evt.pageX - img.offsetLeft;
           posY = evt.offsetY ? (evt.offsetY) : evt.pageY - img.offsetTop;
-          //el.style.backgroundPosition = (-posX * 2) + "px " + (-posY * 4) + "px";
           el.style.backgroundPosition = (-posX * 8) + "px " + (-posY * 8) + "px";
         },
         strip_mnt(path) {
