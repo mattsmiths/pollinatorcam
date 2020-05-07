@@ -68,6 +68,7 @@
         <div><a :href="stills_url">Name/MAC = {{ name }}</a></div>
         <div>Up for [{{ uptime_string }}]</div>
         <div><a :href="detections_url">N Detections = {{ detections.length }}</a></div>
+        <div><a :href="overview_url">Overview</a></div>
         <div><a :href="videos_url">Videos</a></div>
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -179,6 +180,8 @@
               this.detection = data;
             });
           });
+          ts = detection.split("_")[0].split("/").slice(-1)[0]
+          this.minute = Number(ts.slice(0, 2)) * 60 + Number(ts.slice(2, 4));
         },
         select_time(evt) {
           svg = evt.currentTarget;
@@ -187,8 +190,8 @@
           pt.y = evt.clientY;
           cpt = pt.matrixTransform(svg.getScreenCTM().inverse());
           this.minute = cpt.x * 2;
-          hr = Math.floor(this.minute / 60);
-          min = this.minute - (hr * 60);
+          //hr = Math.floor(this.minute / 60);
+          //min = this.minute - (hr * 60);
         },
       },
       computed: {
@@ -206,6 +209,9 @@
         },
         detections_url() {
           return `/data/detections/${this.name}/${this.day.replace(/-/g, '').slice(2, 8)}/`;
+        },
+        overview_url() {
+          return `/data/overviews/${this.name}/${this.name}_${this.day}.mp4`;
         },
         videos_url() {
           return `/data/videos/${this.name}/${this.day.replace(/-/g, '').slice(2, 8)}/`;
@@ -258,10 +264,10 @@
           di = 0;
           switch (evt.key) {
             case 'w':
-              ci = 1;
+              ci = -1;
               break;
             case 's':
-              ci = -1;
+              ci = 1;
               break;
             case 'd':
               di = 1;
