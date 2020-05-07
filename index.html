@@ -5,13 +5,10 @@
   <title>Pollinator Camera</title>
   <script src="https://unpkg.com/vue"></script>
 <style>
-.camera_image:hover {
-  width: 600px;
-}
 #overlay {
   display:inline-block;
   background-repeat:no-repeat;
-  width:600px;
+  width:800px;
   height:600px;
   position:absolute;
   top:0px;
@@ -49,7 +46,6 @@
         <img
           v-if="active"
           :id="name + 'img'"
-          class="camera_image"
           :src="snapshot_url"
           style="width: 300px; float:left; border-color:lightcyan"
           border=5
