@@ -4,9 +4,26 @@
   <meta charset="utf-8"/>
   <title>Pollinator Camera</title>
   <script src="https://unpkg.com/vue"></script>
+<style>
+.camera_image:hover {
+  width: 600px;
+}
+#overlay {
+  display:inline-block;
+  background-repeat:no-repeat;
+  width:600px;
+  height:600px;
+  position:absolute;
+  top:0px;
+  left:0px;
+  z-index:1;
+  display:none;
+}
+</style>
 </head>
 <body>
   <div id="vm">
+    <div id="overlay"></div>
     <!-- status bar -->
     <span
       :style="
@@ -31,15 +48,22 @@
       <div class="camera-view">
         <img
           v-if="active"
+          :id="name + 'img'"
+          class="camera_image"
           :src="snapshot_url"
           style="width: 300px; float:left; border-color:lightcyan"
           border=5
+          @mousemove="zoom"
+          @mouseout="zoom"
         ></img>
         <img
           v-else
+          :id="name + 'img'"
           :src="snapshot_url"
           style="width: 300px; float:left; border-color:tomato"
           border=5
+          @mousemove="zoom"
+          @mouseout="zoom"
         ></img>
         <!-- TODO links to overview, data, etc -->
         <div>IP address = {{ ip }}</div>
@@ -54,26 +78,34 @@
           height=30
           @click="select_time"
         >
-          <rect x=0 y=0 width=720 height=20 style="fill:none;stroke:black;stroke-width:1"></rect>
-          <!-- TODO detection position by minute -->
+          <rect x=1 y=1 width=718 height=18 style="fill:lightyellow;stroke:black;stroke-width:0.5px"/>
+          <rect x=1 y=1 width=150 height=18 style="fill:lightgray;stroke:none"/>
+          <rect x=630 y=1 width=809 height=18 style="fill:lightgray;stroke:none"/>
+          <pattern id=ticks x=0 y=0 width=30 height=30 patternUnits="userSpaceOnUse">
+            <rect x=0 y=0 width=1 height=30 style="fill:lightgray;stroke:none"/>
+          </pattern>
+          <rect x=30 y=0 width=690 height=30 fill="url(#ticks)"/>
+          <text x=182 y=15 font-size="12px">6</text>
+          <text x=362 y=15 font-size="12px">12</text>
+          <text x=542 y=15 font-size="12px">18</text>
           <rect
             v-for="detection in detections"
             :x="detection_to_x(detection)" y=0
-            width=4 height=30
-            style="fill:green;stroke:none"
+            width=10 height=30
+            style="stroke:none;fill:green"
             @click="show_detection(detection)"
-          ></rect>
+          />
           <rect
             v-if="minute > -1"
             :x="minute / 2" y=0
             width=4 height=30
             style="fill:black;stroke:none"
-          ></rect>
+          />
         </svg>
         <!-- TODO current selected detection -->
         <div v-if="detection.filename !== ''">
           Video: <a :href="strip_mnt(detection.meta.filename)">{{ strip_mnt(detection.meta.filename) }}</a><br />
-          Classes: <span v-for="d in detection.meta.detections">{{ d[0] }}</span>
+          Classes: <a v-for="d in detection.meta.detections" :href="'http://wikipedia.org/wiki/' + d[0]">{{ d[0] }},</a>
         </div>
         <div style="clear:left"></div>
       </div>
@@ -96,6 +128,23 @@
       },
       template: '<div class="camera-view"></div>',
       methods: {
+        zoom(evt) {
+          //console.log({zoom: evt});
+          el = document.getElementById("overlay");
+          if (evt.type === "mouseout") {
+            el.style.display = "none";
+            return;
+          };
+          img = document.getElementById(this.name + "img");
+          el.style.left = img.offsetLeft + img.offsetWidth + 'px';
+          el.style.top = img.offsetTop + 'px';
+          el.style.display = "inline-block";
+          el.style.backgroundImage = "url(" + this.snapshot_url + ")";
+          posX = evt.offsetX ? (evt.offsetX) : evt.pageX - img.offsetLeft;
+          posY = evt.offsetY ? (evt.offsetY) : evt.pageY - img.offsetTop;
+          //el.style.backgroundPosition = (-posX * 2) + "px " + (-posY * 4) + "px";
+          el.style.backgroundPosition = (-posX * 8) + "px " + (-posY * 8) + "px";
+        },
         strip_mnt(path) {
           return '/' + path.split('/').slice(2).join('/');
         },
