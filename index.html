@@ -42,7 +42,9 @@
       :key="camera.name"
       v-bind="camera"
     >
-      <div class="camera-view">
+      <div
+        class="camera-view"
+        :style="selected ? {background: 'lightgreen'} : {background: 'white'}">
         <img
           v-if="active"
           :id="name + 'img'"
@@ -82,7 +84,7 @@
           </pattern>
           <rect x=30 y=0 width=690 height=30 fill="url(#ticks)"/>
           <rect
-            v-if="this.$parent.day === ''"
+            v-if="$parent.day === ''"
             :x="now_x()"
             y=0
             width=2 height=30
@@ -105,7 +107,6 @@
             style="fill:black;stroke:none"
           />
         </svg>
-        <!-- TODO current selected detection -->
         <div v-if="detection.filename !== ''">
           Video: <a :href="strip_mnt(detection.meta.filename)">{{ strip_mnt(detection.meta.filename) }}</a><br />
           Classes: <a v-for="d in detection.meta.detections" :href="'http://wikipedia.org/wiki/' + d[0]">{{ d[0] }},</a>
@@ -117,7 +118,9 @@
 
   <script>
     Vue.component('camera-view', {
-      props: ['ip', 'name', 'uptime', 'image', 'active', 'detections', 'day'],
+      props: [
+        'ip', 'name', 'uptime', 'image', 'active', 'detections', 'day',
+        'selected', 'detection_index'],
       data: function () {
         return {
           minute: -1,
@@ -130,6 +133,11 @@
         }
       },
       template: '<div class="camera-view"></div>',
+      watch: {
+        detection_index: function (val) {
+          this.show_detection(this.detections[val]);
+        },
+      },
       methods: {
         now_x() {
           d = new Date();
@@ -178,7 +186,6 @@
           pt.x = evt.clientX;
           pt.y = evt.clientY;
           cpt = pt.matrixTransform(svg.getScreenCTM().inverse());
-          // TODO base off of actual width
           this.minute = cpt.x * 2;
           hr = Math.floor(this.minute / 60);
           min = this.minute - (hr * 60);
@@ -225,6 +232,7 @@
       el: '#vm',
       data: {
         day: '',
+        camera_index: 0,
         cameras: [],
         temperature: -1.0,
         disk_usage: {
@@ -244,6 +252,49 @@
         },
       },
       methods: {
+        keydown(evt) {
+          console.log({keydown: evt});
+          ci = 0;
+          di = 0;
+          switch (evt.key) {
+            case 'w':
+              ci = 1;
+              break;
+            case 's':
+              ci = -1;
+              break;
+            case 'd':
+              di = 1;
+              break;
+            case 'a':
+              di = -1;
+              break;
+          };
+          if (ci !== 0) {
+            c = this.cameras[this.camera_index];
+            c.selected = false;
+            Vue.set(this.cameras, this.camera_index, c);
+            this.camera_index = (this.camera_index + ci + this.cameras.length) % this.cameras.length;
+            c = this.cameras[this.camera_index];
+            c.selected = true;
+            Vue.set(this.cameras, this.camera_index, c);
+          };
+          if (di != 0) {
+            c = this.cameras[this.camera_index];
+            if (isNaN(c.detection_index)) {
+              if (di == 1) {
+                i = 0;
+              } else {
+                i = c.detections.length - 1;
+              };
+            } else {
+              i = (c.detection_index + di + c.detections.length) % c.detections.length
+            };
+            if (i == -1) return;
+            c.detection_index = i;
+            Vue.set(this.cameras, this.camera_index, c);
+          };
+        },
         sync(evt) {
           console.log({sync: [this, evt]});
           if (evt !== undefined) {
@@ -259,6 +310,8 @@
             if (response.status !== 200) return;
             response.json().then((data) => {
               this.cameras = data;
+              this.camera_index = 0;
+              this.cameras[0].selected = true;
             });
           });
           fetch(base + '/temperature').then((response) => {
@@ -277,6 +330,7 @@
       },
       created() {return this.sync()},
     });
+    document.addEventListener('keydown', vm.keydown);
   </script>
 </body>
 </html>
