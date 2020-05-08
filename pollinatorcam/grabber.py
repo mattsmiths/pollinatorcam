@@ -16,6 +16,7 @@ import time
 
 import cv2
 import numpy
+import systemd.daemon
 
 import tfliteserve
 
@@ -34,7 +35,7 @@ class Grabber:
     def __init__(
             self, ip, name=None, retry=False,
             fake_detection=False, save_all_detections=True,
-            roi=None):
+            roi=None, in_systemd=False):
         # TODO use general config here
         self.cam = dahuacam.DahuaCamera(ip)
         # TODO do this every startup?
@@ -79,9 +80,7 @@ class Grabber:
         #        d,
         #        '%s_%s_%i.mp4' % (dt.strftime('%H%M%S'), self.name, i))
 
-        self.trigger = trigger.TriggeredRecording(
-            self.cam.rtsp_url(channel=1, subtype=0),
-            0.1, 1.0, 3.0, 10.0, self.vdir, self.name)
+        self.build_trigger()
 
         #self.detector = trigger.MaskedDetection(0.5)
         self.detector = trigger.RunningThreshold(
@@ -100,6 +99,18 @@ class Grabber:
 
         # left, right, dimension
         self.roi = roi
+        self.in_systemd = in_systemd
+        if self.in_systemd:
+            systemd.daemon.notify(systemd.daemon.Notification.READY)
+            self.reset_watchdog()
+        logging.info("Process in systemd? %s", self.in_systemd)
+
+    def build_trigger(self):
+        if hasattr(self, 'trigger'):
+            del self.trigger
+        self.trigger = trigger.TriggeredRecording(
+            self.cam.rtsp_url(channel=1, subtype=0),
+            0.1, 1.0, 3.0, 10.0, self.vdir, self.name)
 
     def start_capture_thread(self):
         self.capture_thread = cvcapture.CVCaptureThread(
@@ -222,7 +233,13 @@ class Grabber:
                         'meta': self.trigger.meta,
                         'last_meta': self.trigger.last_meta},
                     f, indent=True, cls=logger.MetaJSONEncoder)
-    
+
+    def reset_watchdog(self):
+        if not self.in_systemd:
+            return
+        systemd.daemon.notify(systemd.daemon.Notification.WATCHDOG)
+        logging.debug("Reset watchdog")
+
     def update(self):
         try:
             # TODO wait frame period * 1.5
@@ -241,6 +258,11 @@ class Grabber:
             logging.warning("Image error: %s", im)
             return False
 
+        # have new image
+        # check status of trigger
+        if not self.trigger.recorder.is_alive():
+            self.build_trigger()
+
         self.frame_count += 1
         #print("Acquired:", self.frame_count)
 
@@ -252,6 +274,9 @@ class Grabber:
         if self.frame_count % self.analyze_every_n == 0:
             # TODO need to catch errors, etc
             self.analyze_frame(im)
+
+        # reset watchdog
+        self.reset_watchdog()
 
     def run(self):
         while True:
@@ -266,6 +291,9 @@ def cmdline_run():
     parser.add_argument(
         '-d', '--save_all_detections', action='store_true',
         help='save all detection results')
+    parser.add_argument(
+        '-D', '--in_systemd', action='store_true',
+        help='running in sysd, reset watchdog')
     parser.add_argument(
         '-f', '--fake', default=False, action='store_true',
         help='fake client detection')
@@ -315,5 +343,5 @@ def cmdline_run():
     g = Grabber(
         args.ip, args.name, args.retry,
         fake_detection=args.fake, save_all_detections=args.save_all_detections,
-        roi=roi)
+        roi=roi, in_systemd=args.in_systemd)
     g.run()

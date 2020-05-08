@@ -5,4 +5,5 @@ source /home/pi/.virtualenvs/pollinatorcam/bin/activate
 
 cd /home/pi/r/cbs-ntcore/pollinatorcam
 
-python3 -m pollinatorcam -i $1 -rd
+# exec here to use same PID to allow systemd watchdog
+exec python3 -m pollinatorcam -i $1 -rdD
