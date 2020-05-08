@@ -129,10 +129,19 @@ class Recorder(threading.Thread):
 
         self.filename = None
 
+    def drop_buffer_cb(self, pad, info):
+        if info.get_buffer().get_flags() == 0:
+            # complete buffer stop dropping
+            return Gst.PadProbeReturn.REMOVE
+        return Gst.PadProbeReturn.DROP
+
     def create_filesink(self, fn):
         # TODO use GstBin instead
         self.depay = Gst.ElementFactory.make('rtph265depay', 'depay0')
         self.parse = Gst.ElementFactory.make('h265parse', 'parse0')
+        # TODO connect pad probe to parse src pad, drop buffers until full frame
+        src_pad = self.parse.get_static_pad('src')
+        src_pad.add_probe(GstPadProbeType.BUFFER, self.drop_buffer_cb)
         self.parse_caps = Gst.ElementFactory.make('capsfilter', 'caps1')
         #self.parse_caps.set_property(
         #    'caps',
