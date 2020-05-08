@@ -21,7 +21,7 @@ import tfliteserve
 
 from . import cvcapture
 from . import dahuacam
-from . import gstcapture
+#from . import gstcapture
 from . import logger
 from . import trigger
 
@@ -167,10 +167,11 @@ class Grabber:
         #print("Analyze: %s" % ts)
         if self.fake_detection:
             #print(im.mean())
-            t = im.mean() < 100
-            #if time.monotonic() - self.last_detection > 5.0:
-            #    t = True
-            #    self.last_detection = time.monotonic()
+            #t = im.mean() < 100
+            t = False
+            if time.monotonic() - self.last_detection > 5.0:
+                t = True
+                self.last_detection = time.monotonic()
         else:
             cim = self.crop(im)
             o = self.client.run(cim)

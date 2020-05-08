@@ -25,20 +25,9 @@ from gi.repository import Gst, GLib, GObject
 
 url_string = "rtsp://{user}:{password}@{ip}:554/cam/realmonitor?channel=1&subtype=0"
 
-#default_pre_record_time = 1000000000
-#default_pre_record_time = 3 * Gst.SECOND  # TODO configure
-
 cmd_string = (  # TODO configure queue latency/max-size-time/etc?
-    #'rtspsrc name=src0 location="{url}" latency=0 tcp-timeout=0 teardown-timeout=0 timeout=0 drop-on-latency=true max-rtcp-rtp-time-offset=-1 max-ts-offset=10000000000 ! '
-    #'rtspsrc name=src0 location="{url}" buffer-mode=2 latency=4000 timeout=10000000 drop-on-latency=true max-rtcp-rtp-time-diff=-1 max-dropout-time=10000 max-misorder-time=10000 ! '
-    #'rtspsrc name=src0 location="{url}" buffer-mode=2 latency=4000 timeout=10000000 drop-on-latency=true max-rtcp-rtp-time-diff=10000 max-ts-offset=0 ! '
     'rtspsrc name=src0 location="{url}" ! '
-    #'rtpjitterbuffer name=buffer0 mode=0 latency=1000 drop-on-latency=true max-rtcp-rtp-time-diff=10000 rtx-next-seqnum=false max-misorder-time=10000 max-dropout-time=10000 ! '
     'capsfilter name=caps0 caps=application/x-rtp,media=video ! '
-    #'queue name=queue0 ! '
-    #'queue name=queue0 leaky=2 max-size-bytes=0 max-size-buffers=0 max-size-time=1000000000 ! '
-    #'queue name=queue1 max-size-bytes=0 max-size-buffers=0 max-size-time=3000000000 ! '
-    #'queue name=queue0 max-size-time=1000000 min-threshold-time=1000000000 ! '  # this is the 'delay'
     'queue name=queue0 max-size-bytes=0 max-size-buffers=0 leaky=2 silent=true max-size-time=2000000000 min-threshold-time=1500000000 ! '  # this is the 'delay'
     'fakesink name=fakesink0 sync=false '
 )
@@ -130,10 +119,14 @@ class Recorder(threading.Thread):
         self.filename = None
 
     def drop_buffer_cb(self, pad, info):
-        if info.get_buffer().get_flags() == 0:
+        flags = info.get_buffer().get_flags()
+        print("Buffer flags: ", flags)
+        if flags != 0:
             # complete buffer stop dropping
-            return Gst.PadProbeReturn.REMOVE
-        return Gst.PadProbeReturn.DROP
+            print("Dropping incomplete buffer...")
+            return Gst.PadProbeReturn.DROP
+        print("Done dropping")
+        return Gst.PadProbeReturn.REMOVE
 
     def create_filesink(self, fn):
         # TODO use GstBin instead
@@ -141,7 +134,7 @@ class Recorder(threading.Thread):
         self.parse = Gst.ElementFactory.make('h265parse', 'parse0')
         # TODO connect pad probe to parse src pad, drop buffers until full frame
         src_pad = self.parse.get_static_pad('src')
-        src_pad.add_probe(GstPadProbeType.BUFFER, self.drop_buffer_cb)
+        src_pad.add_probe(Gst.PadProbeType.BUFFER, self.drop_buffer_cb)
         self.parse_caps = Gst.ElementFactory.make('capsfilter', 'caps1')
         #self.parse_caps.set_property(
         #    'caps',
