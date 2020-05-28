@@ -30,6 +30,9 @@ from . import trigger
 
 # cfg data:
 # - rois: [(left, top, size),...] if None, auto-compute 1
+#  left/top 0-1 scaled by width/height
+#  size 0-1 scaled by min(width, height)
+# TODO add detection/taxonomy mask
 default_cfg = {
     'rois': None,
 }
@@ -158,10 +161,6 @@ class Grabber:
             coords.append((t, b, l, r))
         else:
             for roi in self.cfg['rois']:
-                # TODO use floats to not depend on resolution
-                # l, t, dim = roi
-                # r = l + dim
-                # b = t + dim
                 fl, ft, fdim = roi
                 if h < w:
                     dim = int(h * fdim)
@@ -251,39 +250,6 @@ class Grabber:
                 #        dt, {'labels': numpy.squeeze(o), 'detection': t})
 
 
-            # coords, cim, detector = self.crop(im)
-            # o = self.client.run(cim)
-            # #t, info = self.detector(o)
-            # t, info = detector(o)
-
-            # # look up detection labels sorted by confidence
-            # detections = []
-            # if len(info['indices']):
-            #     lbls = self.client.buffers.meta['labels']
-            #     detections = [
-            #         (str(lbls[i]), o[0, i]) for i in
-            #         sorted(
-            #             info['indices'], key=lambda i: o[0, i], reverse=True)]
-            # if t:
-            #     print("Triggered on:")
-            #     for d in detections[:5]:
-            #         k, v = d
-            #         print("\t%s: %f" % (k, v))
-            #     if len(detections) > 5:
-            #         print("\t...%i detections total" % len(detections))
-
-
-            # if self.save_all_detections:
-            #     self.analysis_logger.save(
-            #         dt, {'labels': numpy.squeeze(o), 'detection': t})
-            # 
-            # # add detection results to meta data
-            # # - roi
-            # # - detection indices and values sorted by value
-            # meta['detections'] = detections
-            # # - detector info (from info)
-            # # TODO other info
-            # meta['indices'] = info['indices']
         if set_trigger:
             logging.debug("Triggered!")
             #print(meta['detections'][0][:5])
