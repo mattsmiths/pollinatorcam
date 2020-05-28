@@ -185,11 +185,43 @@ def cmdline_run():
         '-i', '--ips', type=str, default="",
         help="ips to scan (as cidr)")
     parser.add_argument(
+        '-p', '--print', action='store_true',
+        help="print last discover results")
+    parser.add_argument(
         '-v', '--verbose', action='store_true',
         help="enable verbose logging")
     args = parser.parse_args()
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG)
+
+    if args.print:
+        cfg = config.load_config(cfg_name, None)
+        if cfg is None:
+            print("No previous discover results found")
+            return
+        camera_ips = []
+        other_ips = []
+        for ip in cfg:
+            if cfg[ip]['is_camera'] and cfg[ip]['is_configured']:
+                camera_ips.append(ip)
+            else:
+                other_ips.append(ip)
+        print("Cameras:")
+        for ip in sorted(camera_ips):
+            cam = cfg[ip]
+            print("\tIP: %s" % ip)
+            print("\tName: %s" % cam['name'])
+            print("\tActive: %s" % cam['service']['Active'])
+            print("\tUptime: %s" % cam['service']['Uptime'])
+            print()
+        print("Other devices:")
+        for ip in sorted(other_ips):
+            dev = cfg[ip]
+            print("\tIP: %s" % ip)
+            if dev['is_camera']:
+                print("\tLikely an non-configured camera!!")
+                print("\tName: %s" % cam['name'])
+        return
 
     # TODO verify cidr
 
