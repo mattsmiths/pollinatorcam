@@ -117,6 +117,7 @@
   </div>
 
   <script>
+    page_timestamp = (new Date()).getTime();
     Vue.component('camera-view', {
       props: [
         'ip', 'name', 'uptime', 'image', 'active', 'detections', 'day',
@@ -218,7 +219,7 @@
           return `${this.day}T${(hr + '').padStart(2, '0')}:${(min + '').padStart(2, '0')}`;
         },
         snapshot_url() {
-          return `/snapshot/${this.name}/${this.timestamp}`;
+          return `/snapshot/${this.name}/${this.timestamp}?${page_timestamp}`;
         },
         stills_url() {
           return `/data/${this.name}/${this.day}/pic_001/`;
