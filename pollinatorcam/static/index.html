@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <title>Pollinator Camera</title>
-  <script src="https://unpkg.com/vue"></script>
+  <script src="/static/vue.min.js"></script>
 <style>
 #overlay {
   display:inline-block;
@@ -168,6 +168,9 @@
           y = img.offsetTop;
           if (y + el.offsetHeight >= document.body.clientHeight) {
             y -= (el.offsetHeight - img.offsetHeight);
+            if (y < 0) {
+              y = img.offsetTop;
+            };
           };
           el.style.top = y + 'px';
           el.style.display = "inline-block";

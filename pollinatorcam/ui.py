@@ -27,13 +27,15 @@ from . import discover
 from . import grabber
 
 
-app = flask.Flask('pcam')
+this_dir = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
+app = flask.Flask(
+    'pcam', static_folder=os.path.join(this_dir, 'static'))
 
 
 @app.route("/", methods=["GET"])
 def index():
     # TODO fix this, make it a relative path
-    path = '/home/pi/r/cbs-ntcore/pollinatorcam/index.html'
+    path = os.path.join(this_dir, 'static', 'index.html')
     return flask.send_file(path, mimetype='text/html')
 
 
