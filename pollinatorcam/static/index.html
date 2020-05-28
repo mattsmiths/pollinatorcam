@@ -24,7 +24,7 @@
     <!-- status bar -->
     <span
       :style="
-        temperature < 60 ?
+        temperature < 75 ?
         {'background-color': 'lightcyan'} :
         {'background-color': 'tomato'}">
       Core Temperature: {{ Math.round(temperature) }}C
