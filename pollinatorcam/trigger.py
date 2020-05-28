@@ -228,8 +228,8 @@ class Trigger:
 
 class TriggeredRecording(Trigger):
     def __init__(
-            self, url, duty_cycle, post_time, min_time, max_time,
-            directory, name):
+            self, url, directory, name,
+            duty_cycle=0.1, post_time=1.0, min_time=3.0, max_time=10.0):
         self.directory = directory
         self.name = name
         #self.filename_gen = filename_gen

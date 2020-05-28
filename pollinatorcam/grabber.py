@@ -8,6 +8,7 @@ Grab images from camera
 """
 
 import argparse
+import copy
 import datetime
 import json
 import logging
@@ -32,20 +33,32 @@ from . import trigger
 # - rois: [(left, top, size),...] if None, auto-compute 1
 #  left/top 0-1 scaled by width/height
 #  size 0-1 scaled by min(width, height)
-# TODO add detection/taxonomy mask
+# - detector: kwargs used for making detector
+# - recording: kwargs used for making recorder
 default_cfg = {
     'rois': None,
+    'detector': {
+        'n_std': 3.0,
+        'min_dev': 0.1,
+        'threshold': 0.6,
+        'allow': {'insects': True},
+    },
+    'recording': {
+        'duty_cycle': 0.1,
+        'post_time': 1.0,
+        'min_time': 3.0,
+        'max_time': 10.0,
+    },
 }
 
-# TODO include this in config?
 data_dir = '/mnt/data/'
+
 
 class Grabber:
     def __init__(
             self, ip, name=None, retry=False,
             fake_detection=False, save_all_detections=True,
             in_systemd=False):
-        # TODO use general config here
         self.cam = dahuacam.DahuaCamera(ip)
         # TODO do this every startup?
         self.cam.set_current_time()
@@ -77,14 +90,6 @@ class Grabber:
         if not os.path.exists(self.mdir):
             os.makedirs(self.mdir)
 
-        self.build_trigger()
-
-        #self.detector = trigger.RunningThreshold(
-        #    n_std=3.0, min_dev=0.1, threshold=0.6,
-        #    allow={'insects': True}
-        #    #allow={'birds': True, 'mammals': True}
-        #)
-
         self.analyze_every_n = 10
         self.frame_count = -1
 
@@ -103,32 +108,47 @@ class Grabber:
         self.cfg_mtime = None
         self.reload_config(force=True)
 
+        self.build_trigger()
+
     def reload_config(self, force=False):
         mtime = config.get_modified_time(self.name)
         if not force and mtime == self.cfg_mtime:
             # config doesn't exist or was already loaded
             return
         logging.info("Reloading config...")
+        old_cfg = copy.deepcopy(self.cfg)
         self.cfg = config.load_config(self.name, self.cfg)
         self.cfg_mtime = mtime
         if mtime is None:
             config.save_config(self.cfg, self.name)
-        # force crop to be regenerated
-        self.crop = None
+        if self.cfg == old_cfg:
+            return
+        if (
+                (self.cfg['rois'] != old_cfg['rois']) or
+                (self.cfg['detector'] != old_cfg['detector'])):
+            # force crop to be regenerated
+            self.crop = None
+        if self.cfg['recording'] != old_cfg['recording']:
+            self.build_trigger()
 
     def build_trigger(self):
         if hasattr(self, 'trigger'):
+            logging.debug("existing trigger found, deleting")
             del self.trigger
-        # TODO use values from self.cfg
+        logging.debug("Building trigger")
+        #self.trigger = trigger.TriggeredRecording(
+        #    self.cam.rtsp_url(channel=1, subtype=0),
+        #    self.vdir, self.name,
+        #    0.1, 1.0, 3.0, 10.0)
         self.trigger = trigger.TriggeredRecording(
             self.cam.rtsp_url(channel=1, subtype=0),
-            0.1, 1.0, 3.0, 10.0, self.vdir, self.name)
+            self.vdir, self.name,
+            **self.cfg['recording'])
 
     def start_capture_thread(self):
         self.capture_thread = cvcapture.CVCaptureThread(
             cam=self.cam, retry=self.retry)
         self.analyze_every_n = 10
-        # TODO retry
         #self.capture_thread = gstcapture.GstCaptureThread(
         #    url=self.cam.rtsp_url(channel=1, subtype=1))
         #self.analyze_every_n = 1
@@ -181,13 +201,13 @@ class Grabber:
         rois = []
         for coord in coords:
             t, b, l, r = coord
-            # TODO use values from self.cfg
             rois.append((
                 coord,
                 (slice(t, b), slice(l, r)),
-                trigger.RunningThreshold(
-                    n_std=3.0, min_dev=0.1, threshold=0.6,
-                    allow={'insects': True}),
+                trigger.RunningThreshold(**self.cfg['detector']),
+                #trigger.RunningThreshold(
+                #    n_std=3.0, min_dev=0.1, threshold=0.6,
+                #    allow={'insects': True}),
             ))
 
         def cf(image):
