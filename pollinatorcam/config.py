@@ -32,6 +32,8 @@ class ConfigLoadError(Exception):
 
 def get_modified_time(name):
     fn = os.path.join(working_cfg_dir, name)
+    if not os.path.exists(fn):
+        return None
     return os.path.getmtime(fn)
 
 

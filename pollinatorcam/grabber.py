@@ -21,21 +21,27 @@ import systemd.daemon
 import tfliteserve
 
 from . import cvcapture
+from . import config
 from . import dahuacam
 #from . import gstcapture
 from . import logger
 from . import trigger
 
 
-# TODO include this in config
-data_dir = '/mnt/data/'
+# cfg data:
+# - rois: [(left, top, size),...] if None, auto-compute 1
+default_cfg = {
+    'rois': None,
+}
 
+# TODO include this in config?
+data_dir = '/mnt/data/'
 
 class Grabber:
     def __init__(
             self, ip, name=None, retry=False,
             fake_detection=False, save_all_detections=True,
-            roi=None, in_systemd=False):
+            in_systemd=False):
         # TODO use general config here
         self.cam = dahuacam.DahuaCamera(ip)
         # TODO do this every startup?
@@ -68,26 +74,13 @@ class Grabber:
         if not os.path.exists(self.mdir):
             os.makedirs(self.mdir)
 
-        #def fng(i, meta):
-        #    if 'datetime' in meta:
-        #        dt = meta['datetime']
-        #    else:
-        #        dt = datetime.datetime.now()
-        #    d = os.path.join(self.vdir, dt.strftime('%y%m%d'))
-        #    if not os.path.exists(d):
-        #        os.makedirs(d)
-        #    return os.path.join(
-        #        d,
-        #        '%s_%s_%i.mp4' % (dt.strftime('%H%M%S'), self.name, i))
-
         self.build_trigger()
 
-        #self.detector = trigger.MaskedDetection(0.5)
-        self.detector = trigger.RunningThreshold(
-            n_std=3.0, min_dev=0.1, threshold=0.6,
-            allow={'insects': True}
-            #allow={'birds': True, 'mammals': True}
-        )
+        #self.detector = trigger.RunningThreshold(
+        #    n_std=3.0, min_dev=0.1, threshold=0.6,
+        #    allow={'insects': True}
+        #    #allow={'birds': True, 'mammals': True}
+        #)
 
         self.analyze_every_n = 10
         self.frame_count = -1
@@ -97,17 +90,33 @@ class Grabber:
             self.analysis_logger = logger.AnalysisResultsSaver(
                 os.path.join(data_dir, 'rawdetections', self.name))
 
-        # left, right, dimension
-        self.roi = roi
         self.in_systemd = in_systemd
         if self.in_systemd:
             systemd.daemon.notify(systemd.daemon.Notification.READY)
             self.reset_watchdog()
         logging.info("Process in systemd? %s", self.in_systemd)
 
+        self.cfg = default_cfg
+        self.cfg_mtime = None
+        self.reload_config(force=True)
+
+    def reload_config(self, force=False):
+        mtime = config.get_modified_time(self.name)
+        if not force and mtime == self.cfg_mtime:
+            # config doesn't exist or was already loaded
+            return
+        logging.info("Reloading config...")
+        self.cfg = config.load_config(self.name, self.cfg)
+        self.cfg_mtime = mtime
+        if mtime is None:
+            config.save_config(self.cfg, self.name)
+        # force crop to be regenerated
+        self.crop = None
+
     def build_trigger(self):
         if hasattr(self, 'trigger'):
             del self.trigger
+        # TODO use values from self.cfg
         self.trigger = trigger.TriggeredRecording(
             self.cam.rtsp_url(channel=1, subtype=0),
             0.1, 1.0, 3.0, 10.0, self.vdir, self.name)
@@ -128,9 +137,11 @@ class Grabber:
     def build_crop(self, example_image):
         _, th, tw, _ = self.client.buffers.meta['input']['shape']
         h, w = example_image.shape[:2]
-        if self.roi is None:
-            if h == th and w == tw:
-                return lambda image: image
+        logging.debug(
+            "Building crop for image[%s, %s] to [%s, %s]", h, w, th, tw)
+        coords = []
+        if self.cfg['rois'] is None:
+            # use 1 central roi
             if h > w:
                 t = (h // 2) - (w // 2)
                 b = t + w
@@ -143,27 +154,52 @@ class Grabber:
             else:
                 l = 0
                 r = w
+            logging.debug("ROI: %s, %s, %s, %s", t, b, l, r)
+            coords.append((t, b, l, r))
         else:
-            l, t, dim = self.roi
-            r = l + dim
-            b = t + dim
-            assert l >= 0 and l < w
-            assert r > 0 and r <= w
-            assert t >= 0 and t < h
-            assert b > 0 and b <= h
+            for roi in self.cfg['rois']:
+                # TODO use floats to not depend on resolution
+                # l, t, dim = roi
+                # r = l + dim
+                # b = t + dim
+                fl, ft, fdim = roi
+                if h < w:
+                    dim = int(h * fdim)
+                else:
+                    dim = int(w * fdim)
+                l = int(fl * w)
+                t = int(ft * h)
+                r = l + dim
+                b = t + dim
+                logging.debug("ROI: %s, %s, %s, %s", t, b, l, r)
+                assert l >= 0 and l < w
+                assert r > 0 and r <= w
+                assert t >= 0 and t < h
+                assert b > 0 and b <= h
+                coords.append((t, b, l, r))
+
+        # build rois and detectors
+        rois = []
+        for coord in coords:
+            t, b, l, r = coord
+            # TODO use values from self.cfg
+            rois.append((
+                coord,
+                (slice(t, b), slice(l, r)),
+                trigger.RunningThreshold(
+                    n_std=3.0, min_dev=0.1, threshold=0.6,
+                    allow={'insects': True}),
+            ))
 
         def cf(image):
-            # TODO use client input buffer size
-            return cv2.resize(image[t:b, l:r], (th, tw), interpolation=cv2.INTER_AREA)
+            for roi in rois:
+                coords, slices, detector = roi
+                yield (
+                    coords,
+                    cv2.resize(image[slices], (th, tw), interpolation=cv2.INTER_AREA),
+                    detector)
         
         return cf
-
-    def set_roi(self, roi):
-        # TODO make this a data class
-        assert len(roi) == 3
-        assert all([isinstance(i, int) for i in roi])
-        self.roi = roi
-        self.crop = None
 
     def analyze_frame(self, im):
         dt = datetime.datetime.now()
@@ -172,53 +208,88 @@ class Grabber:
             'datetime': dt,
             'timestamp': ts,
         }
-        if self.roi is not None:
-            meta['roi'] = self.roi
 
         #print("Analyze: %s" % ts)
+        set_trigger = False
         if self.fake_detection:
             #print(im.mean())
             #t = im.mean() < 100
-            t = False
             if time.monotonic() - self.last_detection > 5.0:
-                t = True
+                set_trigger = True
                 self.last_detection = time.monotonic()
         else:
-            cim = self.crop(im)
-            o = self.client.run(cim)
-            t, info = self.detector(o)
+            set_trigger = False
+            meta['detections'] = []
+            meta['indices'] = []
+            meta['rois'] = []
+            for patch in self.crop(im):
+                coords, cim, detector = patch
 
-            # look up detection labels sorted by confidence
-            detections = []
-            if len(info['indices']):
-                lbls = self.client.buffers.meta['labels']
-                detections = [
-                    (str(lbls[i]), o[0, i]) for i in
-                    sorted(
-                        info['indices'], key=lambda i: o[0, i], reverse=True)]
-            if t:
-                print("Triggered on:")
-                for d in detections[:5]:
-                    k, v = d
-                    print("\t%s: %f" % (k, v))
-                if len(detections) > 5:
-                    print("\t...%i detections total" % len(detections))
+                # run classification on cropped image
+                o = self.client.run(cim)
+                #o[0, 100] = 1.0
+
+                # run detector on classification results
+                t, info = detector(o)
+                if t:
+                    set_trigger = True
+
+                detections = []
+                if len(info['indices']):
+                    lbls = self.client.buffers.meta['labels']
+                    detections = [
+                        (str(lbls[i]), o[0, i]) for i in
+                        sorted(
+                            info['indices'], key=lambda i: o[0, i], reverse=True)]
+                meta['detections'].append(detections)
+                meta['indices'].append(info['indices'])
+                meta['rois'].append(coords)
+                
+                # TODO
+                #if self.save_all_detections:
+                #    self.analysis_logger.save(
+                #        dt, {'labels': numpy.squeeze(o), 'detection': t})
 
 
-            if self.save_all_detections:
-                self.analysis_logger.save(
-                    dt, {'labels': numpy.squeeze(o), 'detection': t})
-            
-            # add detection results to meta data
-            # - roi
-            # - detection indices and values sorted by value
-            meta['detections'] = detections
-            # - detector info (from info)
-            # TODO other info
-            meta['indices'] = info['indices']
-        r = self.trigger(t, meta)
+            # coords, cim, detector = self.crop(im)
+            # o = self.client.run(cim)
+            # #t, info = self.detector(o)
+            # t, info = detector(o)
 
-        if t or r:
+            # # look up detection labels sorted by confidence
+            # detections = []
+            # if len(info['indices']):
+            #     lbls = self.client.buffers.meta['labels']
+            #     detections = [
+            #         (str(lbls[i]), o[0, i]) for i in
+            #         sorted(
+            #             info['indices'], key=lambda i: o[0, i], reverse=True)]
+            # if t:
+            #     print("Triggered on:")
+            #     for d in detections[:5]:
+            #         k, v = d
+            #         print("\t%s: %f" % (k, v))
+            #     if len(detections) > 5:
+            #         print("\t...%i detections total" % len(detections))
+
+
+            # if self.save_all_detections:
+            #     self.analysis_logger.save(
+            #         dt, {'labels': numpy.squeeze(o), 'detection': t})
+            # 
+            # # add detection results to meta data
+            # # - roi
+            # # - detection indices and values sorted by value
+            # meta['detections'] = detections
+            # # - detector info (from info)
+            # # TODO other info
+            # meta['indices'] = info['indices']
+        if set_trigger:
+            logging.debug("Triggered!")
+            #print(meta['detections'][0][:5])
+        r = self.trigger(set_trigger, meta)
+
+        if set_trigger or r:
             # save trigger meta and last_meta
             dt = self.trigger.meta['datetime']
             d = os.path.join(self.mdir, dt.strftime('%y%m%d'))
@@ -257,6 +328,8 @@ class Grabber:
             #raise Exception("Snapshot error: %s" % im)
             logging.warning("Image error: %s", im)
             return False
+        
+        self.reload_config()
 
         # have new image
         # check status of trigger
@@ -310,38 +383,23 @@ def cmdline_run():
         '-r', '--retry', default=False, action='store_true',
         help='retry on acquisition errors')
     parser.add_argument(
-        '-R', '--roi', default=None, type=str,
-        help=(
-            'camera subframe roi None to use largest square, '
-            'format is left:top:dimension defining a square'))
-    parser.add_argument(
         '-u', '--user', default=None,
         help='camera username')
+    parser.add_argument(
+        '-v', '--verbose', action='store_true',
+        help='enable verbose output')
     args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
 
     if args.password is not None:
         os.environ['PCAM_PASSWORD'] = args.password
     if args.user is not None:
         os.environ['PCAM_USER'] = args.user
 
-    if args.roi is not None:
-        tokens = args.roi.split(':')
-        if len(tokens) != 3:
-            raise ValueError(
-                "Invalid roi[%s] should be left:top:dimension"
-                % args.roi)
-        for t in tokens:
-            if not t.isdigit():
-                raise ValueError(
-                    "Invalid roi[%s] token[%s] is not a digit"
-                    % (args.roi, t))
-        roi = [int(t) for t in tokens]
-    else:
-        roi = None
-        
-
     g = Grabber(
         args.ip, args.name, args.retry,
         fake_detection=args.fake, save_all_detections=args.save_all_detections,
-        roi=roi, in_systemd=args.in_systemd)
+        in_systemd=args.in_systemd)
     g.run()
