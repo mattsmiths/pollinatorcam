@@ -84,6 +84,15 @@ def check_if_camera(ip):
         return False, False, ''
 
 
+def start_camera_service(ip):
+    # compute systemd service name
+    name = 'pcam@%s' % ip
+    logging.info("Service %s not running, starting...", name)
+    # not running, try starting
+    cmd = 'sudo systemctl start %s' % name
+    o = subprocess.run(cmd.split(), check=True)
+
+
 def verify_camera_service(ip):
     # compute systemd service name
     name = 'pcam@%s' % ip
@@ -174,6 +183,11 @@ def check_cameras(cidr=None):
         # verify nas config
         if is_camera and is_configured:
             verify_nas_config(ip)
+            if not cam['service']['Active']:
+                try:
+                    start_camera_service(ip)
+                except Exception as e:
+                    logging.warning("Failed to start camera[%s]: %s", ip, e)
         new_cfg[ip] = cam
 
     config.save_config(new_cfg, cfg_name)
