@@ -23,6 +23,7 @@ import os
 
 import flask
 
+from . import config
 from . import discover
 from . import grabber
 
@@ -70,19 +71,28 @@ def camera_list(date=None):
             return flask.abort(400)
 
     ts = date.strftime('%y%m%d')
+
     # load config key=ip, value=name [or False if not a camera]
-    cfg = discover.load_cascaded_config()
-    ips_to_names = {k: cfg[k] for k in cfg if isinstance(cfg[k], str)}
+    #cfg = discover.load_cascaded_config()
+    #ips_to_names = {k: cfg[k] for k in cfg if isinstance(cfg[k], str)}
 
     # get systemd status and uptime of all ips
-    service_states = discover.status_of_all_camera_services()
+    #service_states = discover.status_of_all_camera_services()
 
     detections_path = os.path.join(grabber.data_dir, 'detections')
 
+    # load last 'discover' result
+    cfg = config.load_config(discover.cfg_name, {})
+    
     cams = []
-    for ip in ips_to_names:
-        s = service_states.get(ip, {})
-        name = ips_to_names[ip]
+    #for ip in ips_to_names:
+    for ip in cfg:
+        if not cfg[ip]['is_camera'] or not cfg[ip]['is_configured']:
+            continue
+        #s = service_states.get(ip, {})
+        s = cfg[ip]['service']
+        #name = ips_to_names[ip]
+        name = cfg[ip]['name']
         detections = sorted(glob.glob(os.path.join(
             detections_path,
             name,

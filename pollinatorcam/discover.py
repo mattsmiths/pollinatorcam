@@ -27,60 +27,19 @@ import re
 import subprocess
 import time
 
+from . import config
 from . import dahuacam
 
 
 default_cidr = '10.1.1.0/24'
 ip_regex = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
-
-base_filename = '~/.pcam/ips.json'
-tmp_filename = '/dev/shm/pcam/ips.json'  # should be on a tmpfs
-
-
-class ConfigLoadError(Exception):
-    pass
-
-
-def load_config(fn):
-    fn = os.path.expanduser(fn)
-    logging.debug("Loading config from: %s", fn)
-    if not os.path.exists(fn):
-        logging.info("No config found, returning empty dict")
-        return {}
-    with open(fn, 'r') as f:
-        return json.load(f)
-
-
-def load_cascaded_config():
-    # load temporary config (from tmpfs)
-    try:
-        config = load_config(tmp_filename)
-    except Exception as e:
-        logging.error(
-            "Falling back to blank config after failing to load %s: %s",
-            tmp_filename, e)
-        config = {}
-
-    # overwrite with hard-coded config
-    try:
-        config.update(load_config(base_filename))
-    except Exception as e:
-        logging.error(
-            "Failed to update config with base %s: %s",
-            base_filename, e)
-        raise ConfigLoadError("hard-coded config load failed")
-    return config
-
-
-def save_config(config, fn):
-    fn = os.path.expanduser(fn)
-    dn = os.path.dirname(fn)
-    logging.debug("Saving config to: %s", fn)
-    if not os.path.exists(dn):
-        logging.debug("Making directory for config: %s", fn)
-        os.makedirs(dn)
-    with open(fn, 'w') as f:
-        json.dump(config, f)
+cfg_name = 'ips.json'
+# dictionary where keys=ips, value=dict
+#   is_camera=True/False
+#   is_configured=True/False
+#   name=camera name (if a camera)
+#   service={Active: True/False, UpTime: N}
+#   skip=True/False (if not present, assume false)
 
 
 def scan_network_for_ips(cidr=None):
@@ -101,9 +60,9 @@ def scan_network_for_ips(cidr=None):
 def check_if_camera(ip):
     """Check if the provided ip is a configured camera
     Returns:
-    camera name if configured camera
-    None if camera but not configured
-    False if not camra
+        is_camera
+        is_configured
+        camera name
     """
     logging.debug("Checking if ip[%s] is a camera", ip)
     dc = dahuacam.DahuaCamera(ip)
@@ -113,16 +72,16 @@ def check_if_camera(ip):
         mn = dahuacam.mac_address_to_name(dc)
         if len(n) != 12:
             logging.error("Camera name isn't 12 chars")
-            return None
+            return True, False, n
         logging.debug("Camera name from mac: %s", mn)
         if mn != n:
             logging.error(
                 "Camera %s isn't configured: %s != %s" % (ip, n, mn))
-            return None
-        return n
+            return True, False, n
+        return True, True, n
     except Exception as e:
         logging.debug("IP returned error: %s", e)
-        return False
+        return False, False, ''
 
 
 def verify_camera_service(ip):
@@ -184,67 +143,40 @@ def status_of_all_camera_services():
 
 
 def check_cameras(cidr=None):
-    prevent_save = False
-    try:
-        config = load_cascaded_config()
-    except ConfigLoadError as e:
-        # if failed to load config don't overwrite
-        logging.warning("Failed to load config: %s", e)
-        prevent_save = True
-        # use blank (scan all ips)
-        config = {}
+    # dictionary where keys=ips, value=dict
+    #   is_camera=True/False
+    #   is_configured=True/False
+    #   name=camera name (if a camera)
+    #   service={Active: True/False, UpTime: N}
+    #   skip=True/False (if not present, assume false)
+    cfg = config.load_config(cfg_name, {})
+    network_ips = scan_network_for_ips(cidr)
+    services = status_of_all_camera_services()
 
-    # only save if config has changed
-    should_save = False
-
-    # find all ips on network
-    for ip in scan_network_for_ips(cidr):
-        if ip in config:
-            # ip is either a camera [already added above]
-            # or is set as not-a-camera [skip]
-            logging.debug(
-                "Skipping check_if_camera on ip %s: %s", ip, config[ip])
+    new_cfg = {}
+    # TODO error catching, save on error?
+    for ip in network_ips:
+        # is blacklisted?
+        if ip in cfg and cfg[ip].get('skip', False):
+            new_cfg[ip] = cfg[ip]
             continue
-       
-        # new ip, mark to save config
-        should_save = True
 
-        # check if ip is a camera
-        try:
-            r = check_if_camera(ip)
-            if r is not None:
-                config[ip] = r
-        except Exception as e:
-            logging.warning(
-                "Failed check_if_camera(%s): %s",
-                ip, e)
+        is_camera, is_configured, name = check_if_camera(ip)
+        cam = {
+            'is_camera': is_camera,
+            'is_configured': is_configured,
+            'name': name,
+        }
 
-    # check all cameras have running services
-    for ip in list(config.keys()):
-        if config[ip] is not False:  # this is a camera
-            r = True
-            try:
-                r = verify_camera_service(ip)
-                # TODO cache this for ui so it doesn't have to poll services
-            except Exception as e:
-                logging.warning(
-                    "Failed verify_camera_service(%s): %s",
-                    ip, e)
-                r = False
-            # verify NAS ip points to this computer
-            try:
-                verify_nas_config(ip)
-            except Exception as e:
-                logging.warning(
-                    "Failed verify_nas_config(%s): %s",
-                    ip, e)
-            if not r:
-                # failed to start service, delete from config
-                # to allow additional attempts at starting
-                del config[ip]
+        # service running?
+        cam['service'] = services.get(ip, {'Active': False, 'Uptime': 0})
 
-    if should_save and not prevent_save:
-        save_config(config, tmp_filename)
+        # verify nas config
+        if is_camera and is_configured:
+            verify_nas_config(ip)
+        new_cfg[ip] = cam
+
+    config.save_config(new_cfg, cfg_name)
 
 
 def cmdline_run():
