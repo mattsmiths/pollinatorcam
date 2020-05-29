@@ -35,8 +35,16 @@ import numpy
 from . import gstrecorder
 
 
+N_CLASSES = 2988
+mask_consts = {
+    'insects': [(True, ('slice', 75, 1067)), (True, 2291)],
+    'birds': [(True, ('slice', 1103, 1589)), ],
+    'mammals': [(True, ('slice', 1589, 1638)), ],
+}
+
+
 def make_allow(insects=False, birds=False, mammals=False):
-    allow = numpy.zeros(2988)
+    allow = numpy.zeros(N_CLASSES)
     if insects:
         allow[75:1067] = 1
         allow[2291] = 1
@@ -47,14 +55,56 @@ def make_allow(insects=False, birds=False, mammals=False):
     return allow
 
 
+def update_mask(mask, valence, operation):
+    """
+    valence is True/False for allow/deny
+    operation is:
+        index range: ['slice', 75, 1067]
+        individual index: 42
+        list of indices:  [3, 1, 4]
+    """
+    if isinstance(operation, int):
+        mask[operation] = valence
+    elif isinstance(operation, (list, tuple)):
+        if len(operation) == 0:
+            return mask
+        if operation[0] == 'slice':
+            mask[slice(*operation[1:])] = valence
+        else:
+            mask[operation] = valence
+    elif isinstance(operation, str):
+        if operation not in mask_consts:
+            raise ValueError("Unknown update_mask operation: %s" % (operation, ))
+        for op in mask_consts[operation]:
+            mask = update_mask(mask, *op)
+    else:
+        raise ValueError("Unknown update_mask operation: %s" % (operation, ))
+    return mask
+
+
+def make_allow_mask(*ops):
+    """
+    ops are: (True/False, operation) (see update_mask)
+    """
+    # if first op is deny (or missing) allow all
+    if (len(ops) == 0) or (not ops[0][0]):
+        mask = numpy.ones(N_CLASSES, dtype=bool)
+    else:  # else (first op is allow) start by denying all
+        mask = numpy.zeros(N_CLASSES, dtype=bool)
+    for op in ops:
+        mask = update_mask(mask, *op)
+    logging.debug("Made allow mask: %s", mask)
+    return mask
+
+
 class RunningThreshold:
     def __init__(self, min_n=10, n_std=3.0, min_dev=0.1, threshold=0.9, allow=None):
         self.min_n = min_n
         self.n_std = n_std
         self.min_dev = min_dev
         self.static_threshold = threshold
-        if isinstance(allow, dict):
-            allow = make_allow(**allow)
+        if isinstance(allow, (list, tuple)):
+            allow = make_allow_mask(*allow)
         self.allow = allow
 
         self.buffers = None

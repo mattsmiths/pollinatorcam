@@ -41,12 +41,7 @@ default_cfg = {
         'n_std': 3.0,
         'min_dev': 0.1,
         'threshold': 0.6,
-        #'mask': {
-        #    'allow': {
-        #        'supercategory': 'insects',
-        #    },
-        #},
-         'allow': {'insects': True},
+         'allow': [(True, 'insects'), ],
     },
     'recording': {
         'duty_cycle': 0.1,
