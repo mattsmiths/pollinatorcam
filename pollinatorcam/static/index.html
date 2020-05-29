@@ -45,11 +45,21 @@
       <div
         class="camera-view"
         :style="selected ? {background: '#e9fbe9'} : {background: 'white'}">
+        <canvas
+          :id="name + 'canvas'" width=400 height=300
+          style="float:left;"
+          @mousemove="zoom"
+          @mouseout="zoom"
+          @click="canvas_click"
+        ></canvas>
+        <!-- TODO display for config floating right -->
+        <div style="float:right; display:block; width: 400px;">{{ cfg }}</div>
+        <!--
         <img
           v-if="active"
           :id="name + 'img'"
           :src="snapshot_url"
-          style="width: 300px; float:left; border-color:lightcyan"
+          style="width: 400px; float:left; border-color:lightcyan"
           border=5
           @mousemove="zoom"
           @mouseout="zoom"
@@ -58,11 +68,12 @@
           v-else
           :id="name + 'img'"
           :src="snapshot_url"
-          style="width: 300px; float:left; border-color:tomato"
+          style="width: 400px; float:left; border-color:tomato"
           border=5
           @mousemove="zoom"
           @mouseout="zoom"
         ></img>
+        -->
         <div>IP address = {{ ip }}</div>
         <div><a :href="stills_url">Name/MAC = {{ name }}</a></div>
         <div>Up for [{{ uptime_string }}]</div>
@@ -111,7 +122,12 @@
           Video: <a :href="strip_mnt(detection.meta.filename)">{{ strip_mnt(detection.meta.filename) }}</a><br />
           Classes: <a v-for="d in detection.meta.detections" :href="'http://wikipedia.org/wiki/' + d[0]">{{ d[0] }},</a>
         </div>
-        <div style="clear:left"></div>
+        <div class="controls">
+          <input type="checkbox" v-model="roi_edit">Edit ROIs</input>
+          <button @click="clear_rois">Clear ROIs</button>
+          <button @click="commit_cfg">Commit</button>
+        </div>
+        <div style="clear:both"></div>
       </div>
     </camera-view>
   </div>
@@ -121,9 +137,11 @@
     Vue.component('camera-view', {
       props: [
         'ip', 'name', 'uptime', 'image', 'active', 'detections', 'day',
-        'selected', 'detection_index'],
+        'selected', 'detection_index', 'cfg'],
       data: function () {
         return {
+          roi_edit: false,
+          roi_pts: [],
           zoomed: false,
           minute: -1,
           detection: {
@@ -134,18 +152,126 @@
           },
         }
       },
+      mounted: function () {
+        this.canvas = document.getElementById(this.name + "canvas");
+        this.img = new Image();
+        this.ctx = this.canvas.getContext("2d");
+        this.draw_canvas();
+      },
       template: '<div class="camera-view"></div>',
       watch: {
         selected: function (val) {
-	  if (!val) return;
-          img = document.getElementById(this.name + "img");
+          if (!val) return;
+          img = document.getElementById(this.name + "canvas");
           window.scrollTo(0, img.offsetTop);
         },
         detection_index: function (val) {
           this.show_detection(this.detections[val]);
         },
+        minute: function (val) {
+          this.draw_canvas();
+        },
+        active: function (val) {
+          this.draw_canvas();
+        },
+        cfg: function (val) {
+          console.log({cfg: val});
+          this.draw_canvas();
+        },
+        roi_pts: function (val) {
+          console.log({roi_pts: val});
+          // TODO resolve ROIs
+          prev = null;
+          rois = [];
+          for (i in this.roi_pts) {
+            if (prev === null) {
+              prev = this.roi_pts[i];
+            } else {
+              l = Math.min(prev[0], this.roi_pts[i][0]);
+              t = Math.min(prev[1], this.roi_pts[i][1]);
+              w = Math.abs(prev[0] - this.roi_pts[i][0]);
+              h = Math.abs(prev[1] - this.roi_pts[i][1]);
+              d = Math.min((w * width) / height, h);
+              rois.push([l, t, d]);
+              prev = null;
+            };
+          };
+          if (rois.length === 0) rois = null;
+          Vue.set(this.cfg, 'rois', rois);  // TODO not reactive
+          this.draw_canvas();
+        },
       },
       methods: {
+        draw_canvas() {
+          this.img.onload = () => {
+            width = this.canvas.width;
+            height = this.canvas.height;
+            this.ctx.drawImage(this.img, 0, 0, width, height);
+            // draw ROIs
+            if (this.cfg.rois === null) {
+              rois = [[0.125, 0, 1.0],];
+            } else {
+              rois = this.cfg.rois;
+            };
+            for (i in rois) {
+              roi = rois[i];
+              this.ctx.strokeStyle = '#0000FF';
+              this.ctx.lineWidth = 3;
+              this.ctx.strokeRect(
+                roi[0] * width,
+                roi[1] * height,
+                roi[2] * height,
+                roi[2] * height);
+            };
+            if (this.roi_edit) {
+              this.ctx.strokeStyle = '#00FF00';
+              this.ctx.lineWidth = 3;
+              for (i in this.roi_pts) {
+                pt = this.roi_pts[i];
+                this.ctx.strokeRect(pt[0] * width, pt[1] * height, 3, 3);
+              };
+            };
+            // draw not active
+            if (!this.active) {
+              this.ctx.strokeStyle = '#FF0000';
+              this.ctx.lineWidth = 10;
+              this.ctx.strokeRect(5, 5, width - 5, height - 5);
+            };
+          };
+          this.img.src = this.snapshot_url;
+        },
+        canvas_click(evt) {
+          if (!this.roi_edit) return;
+          console.log({canvas_click: evt});
+          if (evt.shiftKey) {  // remove
+            this.roi_pts.pop();
+            return;
+          };
+          rect = evt.target.getBoundingClientRect();
+          x = (evt.clientX - rect.left) / rect.width;
+          y = (evt.clientY - rect.top) / rect.height;
+          console.log({x: x, y: y});
+          this.roi_pts.push([x, y]);
+        },
+        clear_rois() {
+          Vue.set(this.cfg, 'rois', null);
+          this.roi_pts = [];
+          this.draw_canvas();  // TODO change above isn't reactive
+        },
+        commit_cfg() {
+          // send current config to website
+          console.log({commit_cfg: this.cfg});
+          // TODO have a 'dirty' flag?
+          url = '/cfg/' + this.name;
+          fetch(url, {
+            method: 'POST', body: JSON.stringify(this.cfg),
+            headers: {
+              'Content-type': 'application/json',
+            },
+          }).then((response) => {
+            if (response.status !== 200) console.log({error: response});
+          });
+        },
         now_x() {
           d = new Date();
           return (d.getHours() * 60 + d.getMinutes()) / 2 + 'px';
@@ -164,7 +290,7 @@
             return;
           };
           this.zoomed = true;
-          img = document.getElementById(this.name + "img");
+          img = document.getElementById(this.name + "canvas");
           el.style.left = img.offsetLeft + img.offsetWidth + 'px';
           y = img.offsetTop;
           if (y + el.offsetHeight >= document.body.clientHeight) {
@@ -178,7 +304,7 @@
           el.style.backgroundImage = "url(" + this.snapshot_url + ")";
           posX = evt.offsetX ? (evt.offsetX) : evt.pageX - img.offsetLeft;
           posY = evt.offsetY ? (evt.offsetY) : evt.pageY - img.offsetTop;
-          el.style.backgroundPosition = (-posX * 8) + "px " + (-posY * 8) + "px";
+          el.style.backgroundPosition = (-posX * 5) + "px " + (-posY * 6) + "px";
         },
         strip_mnt(path) {
           return '/' + path.split('/').slice(2).join('/');

@@ -56,6 +56,32 @@ def disk_info():
     })
 
 
+@app.route("/cfg", methods=["GET", "POST"])
+@app.route("/cfg/<name>", methods=["GET", "POST"])
+def camera_config(name=None):
+    if name is None:  # get/set all
+        cfg = config.load_config(discover.cfg_name, {})
+        cnames = [
+            cfg[ip]['name'] for ip in cfg
+            if cfg[ip]['is_camera'] and cfg[ip]['is_configured']]
+    if flask.request.method == 'GET':  # return config
+        if name is None:  # get/set all
+            return flask.jsonify({
+                cname: config.load_config(cname)
+                for cname in cnames})
+        return flask.jsonify(config.load_config(name))
+    if flask.request.method == 'POST':  # update config
+        if not flask.request.json:
+            flask.abort(400)
+        # TODO verify config
+        cfg = flask.request.json
+        if name is None:  # update all cameras
+            [config.save_config(cfg, cname) for cname in cnames]
+        else:  # update 1 camera
+            config.save_config(cfg, name)
+        return flask.make_response(flask.jsonify(None), 200)
+
+
 @app.route("/cameras", methods=["GET"])
 @app.route("/cameras/", methods=["GET"])
 @app.route("/cameras/<date>", methods=["GET"])
@@ -106,6 +132,7 @@ def camera_list(date=None):
             'active': s.get('Active', False),
             'uptime': s.get('Uptime', -1),
             'detections': detections,
+            'cfg': config.load_config(name),
         })
     cams.sort(key=lambda c: c['name'])
     return flask.jsonify(cams)
