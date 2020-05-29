@@ -49,21 +49,28 @@ def initial_configuration(c, reboot=True):
     # extra format
     prefix = 'Encode[0].ExtraFormat[0].Video'
     config = [
-        ('resolution', '352x240'),
-        ('BitRate', '128'),
+        #('resolution', '352x240'),
+        #('Height', '240'),
+        #('Width', '352'),
+        #('CustomResolutionName', 'CIF'),
+        #('BitRate', '128'),
+
+        ('resolution', '640x480'),
+        ('Height', '480'),
+        ('Width', '640'),
+        ('CustomResolutionName', 'VGA'),
+        ('BitRate', '512'),
+
         ('BitRateControl', 'VBR'),
         ('Compression', 'H.265'),
-        ('CustomResolutionName', 'CIF'),
         ('FPS', '10'),
         ('GOP', '20'),
-        ('Height', '240'),
         ('Pack', 'DHAV'),
         ('Priority', '0'),
         ('Profile', 'Main'),
         ('Quality', '4'),
         ('QualityRange', '6'),
         ('SVCTLayer', '1'),
-        ('Width', '352'),
     ]
     r = c.set_config(config, prefix=prefix)
     config_result['extra'] = r

@@ -106,36 +106,6 @@ class RunningThreshold:
         return self.check(b)
 
 
-
-class MaskedDetection:
-    def __init__(self, threshold, initial_mask=None):
-        self.threshold = threshold
-        # TODO set initial mask from taxonomy
-        self.mask = initial_mask
-
-    def set_labels(self, labels):
-        if self.mask is None:
-            #self.mask = numpy.ones_like(labels)
-
-            # TODO hard coding
-            self.mask = numpy.zeros_like(labels)
-            #self.mask[0, 75:1067] = 1  # insects
-            #self.mask[0, 2291] = 1  # insects
-            self.mask[0, 1103:1589] = 1  # birds
-            self.mask[0, 1589:1638] = 1  # mammals
-        # TODO add filtering for false positives here
-        # TODO add smoothing here
-        md = numpy.logical_and(labels > self.threshold, self.mask)
-        info = {
-            'masked_detection': md,
-            'indices': numpy.nonzero(numpy.squeeze(md))[0],
-        }
-        return numpy.any(md), info
-
-    def __call__(self, labels):
-        return self.set_labels(labels)
-    
-
 class Trigger:
     def __init__(
             self, duty_cycle, post_time, min_time, max_time):

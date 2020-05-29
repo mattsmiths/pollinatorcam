@@ -41,7 +41,12 @@ default_cfg = {
         'n_std': 3.0,
         'min_dev': 0.1,
         'threshold': 0.6,
-        'allow': {'insects': True},
+        #'mask': {
+        #    'allow': {
+        #        'supercategory': 'insects',
+        #    },
+        #},
+         'allow': {'insects': True},
     },
     'recording': {
         'duty_cycle': 0.1,
@@ -136,10 +141,6 @@ class Grabber:
             logging.debug("existing trigger found, deleting")
             del self.trigger
         logging.debug("Building trigger")
-        #self.trigger = trigger.TriggeredRecording(
-        #    self.cam.rtsp_url(channel=1, subtype=0),
-        #    self.vdir, self.name,
-        #    0.1, 1.0, 3.0, 10.0)
         self.trigger = trigger.TriggeredRecording(
             self.cam.rtsp_url(channel=1, subtype=0),
             self.vdir, self.name,
@@ -205,9 +206,6 @@ class Grabber:
                 coord,
                 (slice(t, b), slice(l, r)),
                 trigger.RunningThreshold(**self.cfg['detector']),
-                #trigger.RunningThreshold(
-                #    n_std=3.0, min_dev=0.1, threshold=0.6,
-                #    allow={'insects': True}),
             ))
 
         def cf(image):
