@@ -120,12 +120,12 @@
         </svg>
         <div v-if="detection.filename !== ''">
           Video: <a :href="strip_mnt(detection.meta.filename)">{{ strip_mnt(detection.meta.filename) }}</a><br />
-          Classes: <a v-for="d in detection.meta.detections" :href="'http://wikipedia.org/wiki/' + d[0]">{{ d[0] }},</a>
+          Classes: <a v-for="d in detection.meta.detections.flat(1)" :href="'http://wikipedia.org/wiki/' + d[0]">{{ d[0] }}[{{ d[1].toFixed(2) }}],</a>
         </div>
         <div class="controls">
           <input type="checkbox" v-model="roi_edit">Edit ROIs</input>
-          <button @click="clear_rois">Clear ROIs</button>
-          <button @click="commit_cfg">Commit</button>
+          <button @click="clear_rois" :disabled="!roi_edit">Clear ROIs</button>
+          <button @click="commit_cfg" :disabled="!roi_edit">Commit</button>
         </div>
         <div style="clear:both"></div>
       </div>
