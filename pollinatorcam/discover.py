@@ -162,6 +162,15 @@ def check_cameras(cidr=None):
     network_ips = scan_network_for_ips(cidr)
     services = status_of_all_camera_services()
 
+    # add old cameras to network_ips
+    for ip in cfg:
+        if cfg[ip].get('skip', False):
+            continue
+        if not cfg[ip]['is_camera']:
+            continue
+        if ip not in network_ips:
+            network_ips.append(ip)
+
     new_cfg = {}
     # TODO error catching, save on error?
     for ip in network_ips:
