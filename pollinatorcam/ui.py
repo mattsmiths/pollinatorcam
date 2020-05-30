@@ -56,14 +56,23 @@ def disk_info():
     })
 
 
+@app.route("/freeze", methods=["POST"])
+def freeze_camera_configs():
+    # write all camera configs to static directory
+    cnames = list(discover.get_cameras().values())
+    for name in cnames:
+        cfg = config.load_config(name, None)
+        if cfg is None:
+            continue
+        config.save_config(cfg, name, static=True)
+    return flask.make_response(flask.jsonify(cnames), 200)
+
+
 @app.route("/cfg", methods=["GET", "POST"])
 @app.route("/cfg/<name>", methods=["GET", "POST"])
 def camera_config(name=None):
     if name is None:  # get/set all
-        cfg = config.load_config(discover.cfg_name, {})
-        cnames = [
-            cfg[ip]['name'] for ip in cfg
-            if cfg[ip]['is_camera'] and cfg[ip]['is_configured']]
+        cnames = list(discover.get_cameras().values())
     if flask.request.method == 'GET':  # return config
         if name is None:  # get/set all
             return flask.jsonify({

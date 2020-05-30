@@ -42,6 +42,15 @@ cfg_name = 'ips.json'
 #   skip=True/False (if not present, assume false)
 
 
+def get_cameras():
+    cfg = config.load_config(cfg_name, None)
+    if cfg is None:
+        return {}
+    return {
+        ip: cfg[ip]['name'] for ip in cfg
+        if cfg[ip]['is_camera'] and cfg[ip]['is_configured']}
+
+
 def scan_network_for_ips(cidr=None):
     if cidr is None:
         cidr = default_cidr
@@ -159,7 +168,7 @@ def check_cameras(cidr=None):
     #   service={Active: True/False, UpTime: N}
     #   skip=True/False (if not present, assume false)
     cfg = config.load_config(cfg_name, {})
-    network_ips = scan_network_for_ips(cidr)
+    network_ips = list(scan_network_for_ips(cidr))
     services = status_of_all_camera_services()
 
     # add old cameras to network_ips
@@ -171,6 +180,11 @@ def check_cameras(cidr=None):
         if ip not in network_ips:
             network_ips.append(ip)
 
+    logging.debug("Found ips: %s", network_ips)
+    logging.debug("Old ips: %s", list(cfg.keys()))
+    logging.debug("Service ips: %s", list(services.keys()))
+    # if we have to start a service, rescan after starting
+    rescan_services = False
     new_cfg = {}
     # TODO error catching, save on error?
     for ip in network_ips:
@@ -195,9 +209,20 @@ def check_cameras(cidr=None):
             if not cam['service']['Active']:
                 try:
                     start_camera_service(ip)
+                    rescan_services = True
                 except Exception as e:
                     logging.warning("Failed to start camera[%s]: %s", ip, e)
         new_cfg[ip] = cam
+
+    # a service was started, rescan
+    if rescan_services:
+        logging.debug("Rescanning services")
+        services = status_of_all_camera_services()
+        for ip in services:
+            if ip not in new_cfg:
+                continue
+            new_cfg[ip]['service'] = services[ip]
+
 
     config.save_config(new_cfg, cfg_name)
 

@@ -73,5 +73,3 @@ def save_config(config, name, static=False):
         os.makedirs(dn)
     with open(fn, 'w') as f:
         json.dump(config, f)
-
-
