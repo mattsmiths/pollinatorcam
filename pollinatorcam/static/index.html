@@ -312,6 +312,7 @@
           el.style.backgroundPosition = (-posX * 5) + "px " + (-posY * 6) + "px";
         },
         strip_mnt(path) {
+          if (path == undefined) return "";
           return '/' + path.split('/').slice(2).join('/');
         },
         detection_to_x(detection) {
