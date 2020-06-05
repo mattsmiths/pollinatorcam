@@ -28,7 +28,9 @@ url_string = "rtsp://{user}:{password}@{ip}:554/cam/realmonitor?channel=1&subtyp
 cmd_string = (  # TODO configure queue latency/max-size-time/etc?
     'rtspsrc name=src0 location="{url}" ! '
     'capsfilter name=caps0 caps=application/x-rtp,media=video ! '
-    'queue name=queue0 max-size-bytes=0 max-size-buffers=0 leaky=2 silent=true max-size-time=2000000000 min-threshold-time=1500000000 ! '  # this is the 'delay'
+    #'queue name=queue0 max-size-bytes=0 max-size-buffers=0 leaky=2 silent=true max-size-time=2000000000 min-threshold-time=1500000000 ! '  # this is the 'delay'
+    #'queue name=queue0 max-size-bytes=0 max-size-buffers=0 leaky=2 silent=true max-size-time=2500000000 min-threshold-time=2000000000 ! '  # this is the 'delay'
+    'queue name=queue0 max-size-bytes=0 max-size-buffers=0 leaky=2 silent=true max-size-time=7000000000 min-threshold-time=5000000000 ! '  # this is the 'delay'
     'fakesink name=fakesink0 sync=false '
 )
 
