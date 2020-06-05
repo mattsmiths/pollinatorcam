@@ -45,9 +45,9 @@ default_cfg = {
     },
     'recording': {
         'duty_cycle': 0.1,
-        'post_time': 1.0,
-        'min_time': 3.0,
-        'max_time': 10.0,
+        'post_time': 5.0,
+        'min_time': 10.0,
+        'max_time': 20.0,
     },
 }
 
