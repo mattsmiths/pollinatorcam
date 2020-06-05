@@ -163,7 +163,9 @@ class Trigger:
         self.min_time = min_time
         self.max_time = max_time
         self.post_time = post_time
-        self.total_time = max_time + post_time
+        if duty_cycle == 0.0:
+            raise ValueError("Invalid duty cycle, cannot be 0")
+        self.hold_off_dt = (max_time + post_time) * (1. / self.duty_cycle - 1.)
         self.triggered = False
 
         self.times = {}
@@ -201,9 +203,10 @@ class Trigger:
         # check duty cycle
         if self.active:
             if t - self.times['start'] >= self.max_time:
-                # stop recording, go into hold off
-                self.deactivate(t)
-                self.times['hold_off'] = t + 1. / self.duty_cycle * self.total_time
+                if self.duty_cycle != 1.0:
+                    # stop recording, go into hold off
+                    self.deactivate(t)
+                    self.times['hold_off'] =  t + self.hold_off_dt
         else:
             if 'hold_off' in self.times and t >= self.times['hold_off']:
                 self.activate(t)
@@ -353,9 +356,9 @@ def test():
         t = st
         s = None
         last_state_change_time = None
-        while t - st <= 1.0:
+        while t - st <= N:
             dt = t - st
-            trig.set_trigger(ts_func(dt))
+            trig.set_trigger(ts_func(dt), {})
             if s is not None:
                 if s and not trig.active:  # trigger deactivated
                     stats['on_time'] += (
@@ -393,12 +396,21 @@ def test():
     min_time = 0.005
     max_time = 0.01
 
-    acceptable_duty_error = 0.01
+    acceptable_duty_error = 0.1
 
     # test all on
     trig = Trigger(duty, post_time, min_time, max_time)
     stats = run_trigger(trig, N, lambda dt: True)
-    assert abs(stats['duty'] - duty) < acceptable_duty_error
+    if abs(stats['duty'] - duty) > (duty * acceptable_duty_error):
+        raise Exception("Bad duty cycle: %s != %s" % (stats['duty'], duty))
+
+    # across various duty cycles
+    for dc in (0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0):
+        trig = Trigger(dc, post_time, min_time, max_time)
+        stats = run_trigger(trig, N, lambda dt: True)
+        if abs(stats['duty'] - dc) > (dc * acceptable_duty_error):
+            raise Exception("Bad duty cycle: %s != %s" % (stats['duty'], dc))
+        print(dc, stats['duty'])
 
     # test all off
     trig = Trigger(duty, post_time, min_time, max_time)
