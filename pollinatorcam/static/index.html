@@ -37,7 +37,7 @@
       Disk Used: {{ (100 * disk_usage.used / disk_usage.total).toFixed(2) + '%' }}
     </span>
     <input type="date" id="datesel" @change="sync"/>
-    <button style="float: right; clear: both" onclick="freeze()">Save configs</button>
+    <button id="save_button" style="float: right; clear: both" onclick="freeze()">Save configs</button>
     <!-- cameras -->
     <camera-view
       inline-template
@@ -139,7 +139,13 @@
     page_timestamp = (new Date()).getTime();
     freeze = function () {
       fetch("/freeze", {method: "POST"}).then((r) => {
-        if (r.status !== 200) alert("Failed to save configs: " + r.status);
+        el = document.getElementById("save_button");
+        if (r.status !== 200) {
+          alert("Failed to save configs: " + r.status)
+          el.style.backgroundColor = 'red';
+        } else {
+          el.style.backgroundColor = 'lightgreen';
+        };
       });
     };
     Vue.component('camera-view', {
