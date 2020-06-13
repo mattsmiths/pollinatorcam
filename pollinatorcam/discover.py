@@ -254,15 +254,15 @@ def cmdline_run():
                 camera_ips.append(ip)
             else:
                 other_ips.append(ip)
-        print("Cameras:")
+        print("Cameras: %i" % len(camera_ips))
         for ip in sorted(camera_ips):
             cam = cfg[ip]
-            print("\tIP: %s" % ip)
-            print("\tName: %s" % cam['name'])
-            print("\tActive: %s" % cam['service']['Active'])
-            print("\tUptime: %s" % cam['service']['Uptime'])
-            print()
-        print("Other devices:")
+            print(
+                "\t%s %s %s %s" % (
+                    ip, cam['name'],
+                    'up' if cam['service']['Active'] else 'DOWN',
+                    cam['service']['Uptime']))
+        print("Other devices: %i" % len(other_ips))
         for ip in sorted(other_ips):
             dev = cfg[ip]
             print("\tIP: %s" % ip)
