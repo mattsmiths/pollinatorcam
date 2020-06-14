@@ -41,7 +41,7 @@ default_cfg = {
         'n_std': 3.0,
         'min_dev': 0.1,
         'threshold': 0.6,
-         'allow': [(True, 'insects'), ],
+         'allow': '+insects',
     },
     'recording': {
         'duty_cycle': 0.1,

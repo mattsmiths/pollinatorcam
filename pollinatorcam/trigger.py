@@ -109,7 +109,7 @@ def make_allow_mask(*ops):
     return mask
 
 
-def parse_allow_mask(allow_string):
+def parse_allow_mask(allow_string, check_consts=True):
     """
     allow_string: string
         comma separated values where values are:
@@ -118,7 +118,10 @@ def parse_allow_mask(allow_string):
             - slice (has colon) = label range
     """
     ops = []
-    for token in allow_string.strip().split(','):
+    tokens = allow_string.strip().split(',')
+    if len(tokens) == 1 and len(tokens[0]) == 0:
+        return ops
+    for token in tokens:
         if token[0] not in '+-':
             raise ValueError(
                 "Invalid allow string token (missing leading +-): %s"
@@ -140,6 +143,10 @@ def parse_allow_mask(allow_string):
         elif operation.isdigit():  # index
             op = int(operation)
         else:  # name
+            if check_consts and operation not in mask_consts:
+                raise ValueError(
+                    "Invalid allow string token (unknown label): %s"
+                    % (token, ))
             op = operation
         ops.append((valence, op))
     return ops
