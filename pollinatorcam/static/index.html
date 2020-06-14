@@ -37,7 +37,9 @@
       Disk Used: {{ (100 * disk_usage.used / disk_usage.total).toFixed(2) + '%' }}
     </span>
     <input type="date" id="datesel" @change="sync"/>
-    <button id="save_button" style="float: right; clear: both" onclick="freeze()">Save configs</button>
+    <!--<button id="save_button" style="float: right; clear: both" onclick="freeze()">Save configs</button>-->
+    <span style="width: 200px; display: inline-block"></span>
+    <button id="save_button" onclick="freeze()">Save configs</button>
     <!-- cameras -->
     <camera-view
       inline-template
