@@ -37,22 +37,30 @@ from . import gstrecorder
 
 N_CLASSES = 2988
 mask_consts = {
-    'insects': [(True, ('slice', 75, 1067)), (True, 2291)],
-    'birds': [(True, ('slice', 1103, 1589)), ],
-    'mammals': [(True, ('slice', 1589, 1638)), ],
+    #'insects': [(True, ('slice', 75, 1067)), (True, 2291)],
+    #'birds': [(True, ('slice', 1103, 1589)), ],
+    #'mammals': [(True, ('slice', 1589, 1638)), ],
+    'insects': [('slice', 75, 1067), 2291],
+    'birds': [('slice', 1103, 1589), ],
+    'mammals': [('slice', 1589, 1638), ],
 }
 
 
-def make_allow(insects=False, birds=False, mammals=False):
-    allow = numpy.zeros(N_CLASSES)
-    if insects:
-        allow[75:1067] = 1
-        allow[2291] = 1
-    if birds:
-        allow[1103:1589] = 1
-    if mammals:
-        allow[1589:1638] = 1
-    return allow
+def set_mask_labels(labels):
+    for i in labels:
+        mask_consts[labels[i]] = i
+
+
+# def make_allow(insects=False, birds=False, mammals=False):
+#     allow = numpy.zeros(N_CLASSES)
+#     if insects:
+#         allow[75:1067] = 1
+#         allow[2291] = 1
+#     if birds:
+#         allow[1103:1589] = 1
+#     if mammals:
+#         allow[1589:1638] = 1
+#     return allow
 
 
 def update_mask(mask, valence, operation):
@@ -75,8 +83,12 @@ def update_mask(mask, valence, operation):
     elif isinstance(operation, str):
         if operation not in mask_consts:
             raise ValueError("Unknown update_mask operation: %s" % (operation, ))
-        for op in mask_consts[operation]:
-            mask = update_mask(mask, *op)
+        ops = mask_consts[operation]
+        if isinstance(ops, (tuple, list)):
+            for op in ops:
+                mask = update_mask(mask, valence, op)
+        else:
+            mask = update_mask(mask, valence, ops)
     else:
         raise ValueError("Unknown update_mask operation: %s" % (operation, ))
     return mask
@@ -97,6 +109,42 @@ def make_allow_mask(*ops):
     return mask
 
 
+def parse_allow_mask(allow_string):
+    """
+    allow_string: string
+        comma separated values where values are:
+            - name (lookup in mask_consts) pass through
+            - number = label index
+            - slice (has colon) = label range
+    """
+    ops = []
+    for token in allow_string.strip().split(','):
+        if token[0] not in '+-':
+            raise ValueError(
+                "Invalid allow string token (missing leading +-): %s"
+                % (token, ))
+        valence = token[0] == '+'
+        operation = token[1:]
+        if ':' in operation:  # slice
+            sub_tokens = operation.split(':')
+            if len(sub_tokens) != 2:
+                raise ValueError(
+                    "Invalid allow string token (slice has >2 values): %s"
+                    % (token, ))
+            for v in sub_tokens:
+                if not v.isdigit():
+                    raise ValueError(
+                        "Invalid allow string token (slice not digit): %s"
+                        % (token, ))
+            op = ('slice', sub_tokens[0], sub_tokens[1])
+        elif operation.isdigit():  # index
+            op = int(operation)
+        else:  # name
+            op = operation
+        ops.append((valence, op))
+    return ops
+
+
 class RunningThreshold:
     def __init__(self, min_n=10, n_std=3.0, min_dev=0.1, threshold=0.9, allow=None):
         self.min_n = min_n
@@ -105,6 +153,8 @@ class RunningThreshold:
         self.static_threshold = threshold
         if isinstance(allow, (list, tuple)):
             allow = make_allow_mask(*allow)
+        elif isinstance(allow, str):
+            allow = make_allow_mask(*parse_allow_mask(allow))
         self.allow = allow
 
         self.buffers = None

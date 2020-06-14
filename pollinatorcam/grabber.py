@@ -81,6 +81,8 @@ class Grabber:
         self.name = name
         logging.info("Connecting to tfliteserve as %s", self.name)
         self.client = tfliteserve.Client(self.name)
+        # this updates the global mapping between class and index
+        trigger.set_mask_labels(self.client.buffers.meta['labels'])
 
         self.vdir = os.path.join(data_dir, 'videos', self.name)
         if not os.path.exists(self.vdir):
