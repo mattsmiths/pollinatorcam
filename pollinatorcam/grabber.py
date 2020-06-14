@@ -268,6 +268,7 @@ class Grabber:
         if set_trigger:
             logging.debug("Triggered!")
             #print(meta['detections'][0][:5])
+        meta['config'] = self.cfg
         r = self.trigger(set_trigger, meta)
 
         if set_trigger or r:
