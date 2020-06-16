@@ -92,6 +92,10 @@ class Grabber:
         if not os.path.exists(self.mdir):
             os.makedirs(self.mdir)
 
+        self.cdir = os.path.join(data_dir, 'configs', self.name)
+        if not os.path.exists(self.cdir):
+            os.makedirs(self.cdir)
+
         self.analyze_every_n = 10
         self.frame_count = -1
 
@@ -132,6 +136,11 @@ class Grabber:
             self.crop = None
         if self.cfg['recording'] != old_cfg['recording']:
             self.build_trigger()
+        # re-save in 'log' directory
+        dt = datetime.datetime.now()
+        fn = os.path.join(self.cdir, dt.strftime('%y%m%d_%H%M%S_%f'))
+        with open(fn, 'w') as f:
+            json.dump(self.cfg, f)
 
     def build_trigger(self):
         if hasattr(self, 'trigger'):
