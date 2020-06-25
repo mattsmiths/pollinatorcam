@@ -139,6 +139,11 @@ cd ~/r/braingram
 git clone https://github.com/braingram/tfliteserve.git
 cd tfliteserve
 pip3 install https://dl.google.com/coral/python/tflite_runtime-2.1.0.post1-cp37-cp37m-linux_armv7l.whl
+# install edge support
+echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | sudo tee /etc/apt/sources.list.d/coral-edgetpu.list
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+sudo apt-get update
+sudo apt-get install libedgetpu1-std
 pip3 install -e .
 # get model (TODO 404 permission denied, host this in repo or publicly)
 wget https://github.com/cbs-ntcore/pollinatorcam/releases/download/v0.1/200123_2035_model.tar.xz
@@ -169,10 +174,10 @@ write_enable=YES
 local_umask=011
 local_root=/mnt/data" | sudo tee -a /etc/vsftpd.conf
 
-sudo adduser $PCAM_NAS_USER
+sudo adduser $PCAM_NAS_USER --gecos "" --disabled-password
 sudo adduser $PCAM_NAS_USER ftp
-sudo passwd $PCAM_NAS_USER $PCAM_NAS_PASSWORD
-sudo mkdir /mnt/data
+echo -e "$PCAM_NAS_PASSWORD\n$PCAM_NAS_PASSWORD" | sudo passwd $PCAM_NAS_USER
+sudo mkdir -p /mnt/data/logs
 sudo chgrp ftp /mnt/data
 sudo chown pi /mnt/data
 sudo chmod 755 /mnt/data
@@ -181,7 +186,7 @@ sudo chmod 755 /mnt/data
 # Setup web server (for UI)
 
 ```bash
-sudo htpasswd -c /etc/apache2/.htpasswd pcam $PCAM_PASSWORD
+sudo htpasswd -bc /etc/apache2/.htpasswd pcam $PCAM_PASSWORD
 sudo rm /etc/nginx/sites-enabled/default
 sudo ln -s ~/r/cbs-ntcore/pollinatorcam/services/pcam-ui.nginx /etc/nginx/sites-enabled/
 ```
@@ -193,28 +198,28 @@ TODO Setup gstreamer... (anything to do?)
 
 ```bash
 cd ~/r/cbs-ntcore/pollinatorcam/services
-for S in 
-    tfliteserve.service
-    pcam-discover.service
-    pcam-overview.service
-    pcam-overview.timer
-    pcam@.service
-    pcam-ui.service; do
+for S in \
+    tfliteserve.service \
+    pcam-discover.service \
+    pcam-overview.service \
+    pcam-overview.timer \
+    pcam@.service \
+    pcam-ui.service; do \
   sudo ln -s ~/r/cbs-ntcore/pollinatorcam/services/$S /etc/systemd/system/$S
 done
 # enable services to run on boot
-for S in
-    tfliteserve.service
-    pcam-discover.service
-    pcam-overview.timer
-    pcam-ui.service; do
+for S in \
+    tfliteserve.service \
+    pcam-discover.service \
+    pcam-overview.timer \
+    pcam-ui.service; do \
   sudo systemctl enable $S
 done
 # start services
-for S in
-    tfliteserve.service
-    pcam-discover.service
-    pcam-ui.service; do
+for S in \
+    tfliteserve.service \
+    pcam-discover.service \
+    pcam-ui.service; do \
   sudo systemctl start $S
 done
 sudo systemctl restart nginx
