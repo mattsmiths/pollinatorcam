@@ -191,9 +191,6 @@ sudo rm /etc/nginx/sites-enabled/default
 sudo ln -s ~/r/cbs-ntcore/pollinatorcam/services/pcam-ui.nginx /etc/nginx/sites-enabled/
 ```
 
-TODO Setup uwsgi... (anything to do?)
-TODO Setup gstreamer... (anything to do?)
-
 # Setup systemd services
 
 ```bash
