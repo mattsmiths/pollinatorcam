@@ -1,95 +1,7 @@
 Installation notes
 -----
 
-Several environment variable are used for configuration/running. Please set
-the following in your ~/.bashrc (or wherever else is appropriate):
-
-```bash
-export PCAM_USER="camera login user name"
-export PCAM_PASSWORD="camera login password"
-export PCAM_NAS_USER="ftp server user"
-export PCAM_NAS_PASSWORD="ftp server password"
-```
-
-# Data
-
-- snapshots:
-  - full res (~0.7 MB per image)
-  - 1 every 10 seconods
-  - save detection results
-- short videos
-  - 5 fps
-  - 1 sec pre-record
-  - trigger processed 1/sec
-  - max length?
-  - max duty cycle?
-
-
-## Format
-
-- partitions:
-  - per group (separate storage: mac address?)
-  - camera (ip or mac address?)
-  - time (requires RTC per group, to second)
-- types
-  - detection results: npy
-  - snapshots: jpg
-  - videos: mp4
-
-
-# System architecture
-
-- hardware:
-  - Coral Dev board (in enclosure)
-    - connected storage
-    - power supply
-    - interface?
-  - Security cameras
-    - POE
-    - ethernet feedthroughs
-
-- nodes: 
-  - tensorflow processor
-  - (N) grabbers
-  - FTP server
-
-
-# Camera setup
-
-- Adjust lens to correct focus
-- One time setup
-  - user/password
-  - extraformat h265
-  - extraformat bitrate
-  - extraformat dimensions
-  - extraformat fps
-  - mainformat h265
-  - mainformat bitrate
-  - mainformat dimensions
-  - mainformat fps
-  - disable motion detection
-  - remove videowidget overlays
-  - enable ftp settings
-  - snapshot schedule
-  - snapshot saving
-  - snapshot period
-
-
-# Failure modes
-
-- Camera dies
-- Main node dies (loss of data)
-- Stream disconnects
-  - gstreamer drops
-  - substream drops
-- out of storage
-- TPU hangs
-- TPU disconnects
-- Grabber disconnects from main node (sharedmem failure)
-- Saving video fails
-
-Installation notes
------
+TODO document network setup
 
 # Install OS
 
@@ -99,7 +11,8 @@ Setup locale, timezone, keyboard, hostname, ssh
 # Environment variables
 
 Several environment variable are used for configuration/running. Please set
-the following in your ~/.bashrc (or wherever else is appropriate):
+the following in your ~/.bashrc (or wherever else is appropriate). Note this
+must be at the TOP of your bashrc (before the 'check if interactive' block):
 
 ```bash
 export PCAM_USER="camera login user name"
@@ -112,6 +25,7 @@ export PCAM_NAS_PASSWORD="ftp server password"
 
 Prepare for and clone this repository
 ```bash
+. ~/.bashrc
 mkdir -p ~/r/cbs-ntcore
 cd ~/r/cbs-ntcore
 git clone https://github.com/cbs-ntcore/pollinatorcam.git
@@ -126,9 +40,10 @@ sudo apt install python3-numpy python3-opencv python3-requests python3-flask pyt
 # Setup virtualenv
 
 ```bash
+. ~/.bashrc
 mkvirtualenv --system-site-packages pollinatorcam -p `which python3`
 activate pollinatorcam
-echo "mkvirtualenv --system-site-packages pollinatorcam -p `which python3`" >> ~/.bashrc
+echo "source ~/.virtualenvs/pollinatorcam/bin/activate" >> ~/.bashrc
 ```
 
 # Install tfliteserve
@@ -164,6 +79,7 @@ This assumes you're using an external storage drive that shows up as /dev/sda1
 
 ```bash
 echo "/dev/sda1 /mnt/data auto defaults,user,uid=1000,gid=117,umask=002  0 0" | sudo tee -a /etc/fstab
+sudo mount /mnt/data
 ```
 
 # Setup FTP server
@@ -180,7 +96,7 @@ echo -e "$PCAM_NAS_PASSWORD\n$PCAM_NAS_PASSWORD" | sudo passwd $PCAM_NAS_USER
 sudo mkdir -p /mnt/data/logs
 sudo chgrp ftp /mnt/data
 sudo chown pi /mnt/data
-sudo chmod 755 /mnt/data
+sudo chmod 775 /mnt/data
 ```
 
 # Setup web server (for UI)
@@ -220,4 +136,22 @@ for S in \
   sudo systemctl start $S
 done
 sudo systemctl restart nginx
+```
+
+# Configure cameras
+
+In the background, pcam-discover will run network scans to find new cameras.
+You can run the following to see what devices were found.
+
+```bash
+python3 -m pollinatorcam discover -p
+```
+
+When new cameras are connected, they will need to be configured. If this is
+the first time the camera is configured, you may need to provide a different
+username and password (like the default admin/admin).
+
+```bash
+# if camera ip is 10.1.1.153
+python3 -m pollinatorcam configure -i 10.1.1.153 -u admin -p admin
 ```

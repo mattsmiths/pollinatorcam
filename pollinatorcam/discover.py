@@ -268,7 +268,7 @@ def cmdline_run():
             print("\tIP: %s" % ip)
             if dev['is_camera']:
                 print("\tLikely an non-configured camera!!")
-                print("\tName: %s" % cam['name'])
+                print("\tName: %s" % cfg[ip]['name'])
         return
 
     # TODO verify cidr
