@@ -130,6 +130,7 @@
         <div class="controls">
           <input type="checkbox" v-model="cfg_edit">Edit</input>
           <button @click="clear_rois" :disabled="!cfg_edit">Clear ROIs</button>
+          <button @click="clone_cfg" :disabled="!cfg_edit">Clone config to other cameras</button>
           <br />
           <span>Allow:</span>
           <input type="text" v-model="cfg.detector.allow" :disabled="!cfg_edit"></input>
@@ -399,6 +400,24 @@
             },
           }).then((response) => {
             if (response.status !== 200) console.log({error: response});
+          });
+        },
+        clone_cfg() {
+          // TODO validate config
+          // commit config to all cameras
+          // send current config to website
+          console.log({clone_cfg: this.cfg});
+          // TODO have a 'dirty' flag?
+          url = '/cfg';
+          fetch(url, {
+            method: 'POST', body: JSON.stringify(this.cfg),
+            headers: {
+              'Content-type': 'application/json',
+            },
+          }).then((response) => {
+            if (response.status !== 200) console.log({error: response});
+            // reload configs (by reloading page)
+            location.reload();
           });
         },
         now_x() {
