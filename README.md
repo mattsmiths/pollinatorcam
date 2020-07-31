@@ -1,8 +1,6 @@
 Installation notes
 -----
 
-TODO document network setup
-
 # Install OS
 
 Install latest Pi OS (Desktop: tested March 2020)
@@ -137,6 +135,17 @@ for S in \
   sudo systemctl start $S
 done
 sudo systemctl restart nginx
+```
+
+# Network configuration
+
+The lorex box will try to act as a gateway so if you want to use a different
+interface (than eth0) for internet (like wlan0 or eth1) you will need to tell
+the pi to not use eth0 as a gateway by adding the following to /etc/dhcpcd.conf
+
+```
+interface eth0
+nogateway
 ```
 
 # Configure cameras
