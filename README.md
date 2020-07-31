@@ -12,7 +12,8 @@ Setup locale, timezone, keyboard, hostname, ssh
 
 Several environment variable are used for configuration/running. Please set
 the following in your ~/.bashrc (or wherever else is appropriate). Note this
-must be at the TOP of your bashrc (before the 'check if interactive' block):
+must be at the TOP of your bashrc (before the 'If not running interactively'... line).
+You may have to use nano in the terminal to make these edits:
 
 ```bash
 export PCAM_USER="camera login user name"
