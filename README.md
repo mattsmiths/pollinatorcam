@@ -165,3 +165,24 @@ username and password (like the default admin/admin).
 # if camera ip is 10.1.1.153
 python3 -m pollinatorcam configure -i 10.1.1.153 -u admin -p admin
 ```
+
+# (optional) Setup pymicroclimate weather logging
+
+Install and setup the [pymicroclimate](https://github.com/braingram/pymicroclimate) code.
+
+```bash
+# clone the repository
+cd ~/r/braingram
+git clone https://github.com/braingram/pymicroclimate.git
+
+# install pymicroclimate into the pollinatorcam virtualenv
+# if not already active, activate the virtualenv: workon pollinatorcam
+cd ~/r/braingram/pymicroclimate
+pip install -e .
+
+# setup the pymicroclimate service
+cd ~/r/cbs-ntcore/pollinatorcam/services
+sudo ln -s ~/r/cbs-ntcore/pollinatorcam/services/pymicroclimate /etc/systemd/system/pymicroclimate
+sudo systemctl enable pymicroclimate
+sudo systemctl start pymicroclimate
+```
