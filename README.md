@@ -182,7 +182,7 @@ pip install -e .
 
 # setup the pymicroclimate service
 cd ~/r/cbs-ntcore/pollinatorcam/services
-sudo ln -s ~/r/cbs-ntcore/pollinatorcam/services/pymicroclimate /etc/systemd/system/pymicroclimate
+sudo ln -s ~/r/cbs-ntcore/pollinatorcam/services/pymicroclimate.service /etc/systemd/system/pymicroclimate.service
 sudo systemctl enable pymicroclimate
 sudo systemctl start pymicroclimate
 ```
