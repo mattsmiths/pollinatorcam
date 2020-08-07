@@ -60,7 +60,7 @@ sudo apt-get update
 sudo apt-get install libedgetpu1-std
 pip3 install -e .
 # get model (TODO 404 permission denied, host this in repo or publicly)
-wget https://github.com/cbs-ntcore/pollinatorcam/releases/download/v0.1/200123_2035_model.tar.xz
+wget https://github.com/braingram/tfliteserve/releases/download/v0.1/200123_2035_model.tar.xz
 tar xvJf 200123_2035_model.tar.xz
 ```
 
