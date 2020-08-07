@@ -33,6 +33,7 @@ git clone https://github.com/cbs-ntcore/pollinatorcam.git
 # Install pre-requisites
 
 ```bash
+sudo apt update
 sudo apt install python3-numpy python3-opencv python3-requests python3-flask python3-systemd nginx-full vsftpd virtualenvwrapper apache2-utils python3-gst-1.0 gstreamer1.0-tools nmap
 ```
 
@@ -52,7 +53,7 @@ mkdir -p ~/r/braingram
 cd ~/r/braingram
 git clone https://github.com/braingram/tfliteserve.git
 cd tfliteserve
-pip3 install https://dl.google.com/coral/python/tflite_runtime-2.1.0.post1-cp37-cp37m-linux_armv7l.whl
+pip3 install --no-deps https://dl.google.com/coral/python/tflite_runtime-2.1.0.post1-cp37-cp37m-linux_armv7l.whl
 # install edge support
 echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | sudo tee /etc/apt/sources.list.d/coral-edgetpu.list
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
@@ -74,10 +75,24 @@ pip install uwsgi
 
 # Setup storage location
 
-This assumes you're using an external storage drive that shows up as /dev/sda1
+This assumes you're using an external storage drive that shows up as /dev/sda1. One option is to setup the drive as ntfs.
+To format the drive as ntfs (to allow for >2TB volumes) in fdisk you will need to:
+```bash
+# confirm /dev/sda is your external drive before proceeding
+# open fdisk
+fdisk /dev/sda
+# switch to gpt: g
+# delete all partions: d (for each partion)
+# make a new partion that takes up all disk space: n (use all defaults)
+# switch the partion type to microsoft basic data: t 11
+# write fdisk: w
+```
+
+Mount storage location
 
 ```bash
 echo "/dev/sda1 /mnt/data auto defaults,user,uid=1000,gid=117,umask=002  0 0" | sudo tee -a /etc/fstab
+sudo mkdir /mnt/data
 sudo mount /mnt/data
 ```
 
