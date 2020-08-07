@@ -86,6 +86,8 @@ fdisk /dev/sda
 # make a new partion that takes up all disk space: n (use all defaults)
 # switch the partion type to microsoft basic data: t 11
 # write fdisk: w
+# make ntfs filesystem
+sudo mkfs.ntfs -f /dev/sda1
 ```
 
 Mount storage location
