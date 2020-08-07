@@ -80,7 +80,7 @@ To format the drive as ntfs (to allow for >2TB volumes) in fdisk you will need t
 ```bash
 # confirm /dev/sda is your external drive before proceeding
 # open fdisk
-fdisk /dev/sda
+sudo fdisk /dev/sda
 # switch to gpt: g
 # delete all partions: d (for each partion)
 # make a new partion that takes up all disk space: n (use all defaults)
