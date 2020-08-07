@@ -41,7 +41,7 @@ sudo apt install python3-numpy python3-opencv python3-requests python3-flask pyt
 ```bash
 . ~/.bashrc
 mkvirtualenv --system-site-packages pollinatorcam -p `which python3`
-activate pollinatorcam
+workon pollinatorcam
 echo "source ~/.virtualenvs/pollinatorcam/bin/activate" >> ~/.bashrc
 ```
 
