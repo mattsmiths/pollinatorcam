@@ -21,6 +21,41 @@ def get_timestamps(table, camera_id):
             (camera_id, )).fetchall()]
 
 
+def plot_timestamps(ts, max_value=None, delta=None, start_time=None):
+    if len(ts) == 0:
+        return ""
+    chars = "▁▂▃▄▅▆▇█"
+    nchars = len(chars)
+    to_char = lambda f: chars[max(0, min(nchars - 1, int(f * (nchars - 1) + 0.5)))]
+
+    # count per day
+    if delta is None:
+        td = datetime.timedelta(days=1)
+    else:
+        td = delta
+    if start_time is None:
+        st = ts[0]
+    else:
+        st = start_time
+    nt = st + td
+    day_counts = [0]
+    for t in ts[1:]:
+        if t < nt:
+            day_counts[-1] += 1
+        else:
+            while t >= nt:
+                st = nt
+                nt = st + td
+                day_counts.append(0)
+
+    # max per day
+    if max_value is None:
+        max_value = max(day_counts)
+    if max_value == 0:
+        return " " * len(day_counts)
+    return "".join([to_char(n / max_value) for n in day_counts])
+
+
 def format_breaks(still_blocks):
     st = still_blocks[0][0]
     et = still_blocks[-1][1]
@@ -60,30 +95,29 @@ for camera in cameras:
     video_timestamps = get_timestamps('videos', camera_id)
     still_timestamps = get_timestamps('stills', camera_id)
 
-    if len(still_timestamps) > 999:
-        # find periods with consistent stills
-        still_blocks = []
-        block_start = still_timestamps[0]
-        ps = still_timestamps[0]
-        for s in still_timestamps[1:]:
-            if (s - ps).seconds > 90:  # new block
-                still_blocks.append((block_start, s))
-                block_start = s
-            ps = s
-        if len(still_blocks) and still_blocks[-1][1] != s:
-            still_blocks.append((block_start, s))
-
-        n_still_breaks = max(len(still_blocks) - 1, 0)
-    else:
+    if len(still_timestamps) < 1000:
         print("\t skipping {} < 1000 stills".format(len(still_timestamps)))
         continue
 
+    start_time = still_timestamps[0]
+    end_time = still_timestamps[-1]
+    for ts in (video_timestamps, detection_timestamps, config_timestamps):
+        if len(ts) == 0:
+            continue
+        start_time = min(start_time, ts[0])
+        end_time = max(end_time, ts[-1])
     print("\t{} config changes".format(len(config_timestamps)))
+    print("\t\t{}".format(plot_timestamps(
+        config_timestamps, start_time=start_time)))
     print("\t{} detection events".format(len(detection_timestamps)))
+    print("\t\t{}".format(plot_timestamps(
+        detection_timestamps, start_time=start_time)))
     print("\t{} videos".format(len(video_timestamps)))
+    print("\t\t{}".format(plot_timestamps(
+        video_timestamps, start_time=start_time)))
     print("\t{} stills".format(len(still_timestamps)))
-    print(f"\t\t{n_still_breaks} breaks")
-    print("\t\t|{}|".format(format_breaks(still_blocks)))
+    print("\t\t{}".format(plot_timestamps(
+        still_timestamps, max_value=24 * 60, start_time=start_time)))
     camera_data[camera_id] = {
         'mac': mac,
         'module': module_id,
@@ -91,6 +125,4 @@ for camera in cameras:
         'detections': detection_timestamps,
         'videos': video_timestamps,
         'stills': still_timestamps,
-        'still_blocks': still_blocks,
-        'n_still_breaks': n_still_breaks,
     }
