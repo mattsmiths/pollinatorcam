@@ -5,7 +5,7 @@ import sqlite3
 db = sqlite3.connect('pcam.sqlite', detect_types=sqlite3.PARSE_DECLTYPES)
 
 # count camera/module pairs
-cameras = [r for r in db.execute("SELECT camera_id, mac, module FROM cameras").fetchall()]
+cameras = [r for r in db.execute("SELECT camera_id, mac, module, start, end FROM cameras").fetchall()]
 print("{} camera/modules pairs".format(len(cameras)))
 
 # count unique macaddrs
@@ -13,12 +13,12 @@ macaddrs = set([r[1] for r in cameras])
 print("{} unique camera mac addresses".format(len(macaddrs)))
 
 
-def get_timestamps(table, camera_id):
+def get_timestamps(table, camera_id, start, end):
     return [
         r[0] for r in
         db.execute(
-            f"SELECT timestamp FROM {table} WHERE camera_id=?",
-            (camera_id, )).fetchall()]
+            f"SELECT timestamp FROM {table} WHERE camera_id=? AND timestamp>=? AND timestamp<=?",
+            (camera_id, start, end)).fetchall()]
 
 
 def plot_timestamps(ts, max_value=None, delta=None, start_time=None):
@@ -87,13 +87,14 @@ def format_breaks(still_blocks):
 camera_data = {}
 for camera in cameras:
     # print out module, macaddr, id
-    camera_id, mac, module_id = camera
-    print(f"Camera {camera_id}, mac={mac}, module={module_id}")
+    camera_id, mac, module_id, start, end = camera
+    print(
+        f"Camera {camera_id}, mac={mac}, module={module_id}, start={start}, end={end}")
 
-    config_timestamps = get_timestamps('configs', camera_id)
-    detection_timestamps = get_timestamps('detections', camera_id)
-    video_timestamps = get_timestamps('videos', camera_id)
-    still_timestamps = get_timestamps('stills', camera_id)
+    config_timestamps = get_timestamps('configs', camera_id, start, end)
+    detection_timestamps = get_timestamps('detections', camera_id, start, end)
+    video_timestamps = get_timestamps('videos', camera_id, start, end)
+    still_timestamps = get_timestamps('stills', camera_id, start, end)
 
     if len(still_timestamps) < 1000:
         print("\t skipping {} < 1000 stills".format(len(still_timestamps)))
@@ -106,6 +107,7 @@ for camera in cameras:
             continue
         start_time = min(start_time, ts[0])
         end_time = max(end_time, ts[-1])
+    delta_time = end_time - start_time
     print("\t{} config changes".format(len(config_timestamps)))
     print("\t\t{}".format(plot_timestamps(
         config_timestamps, start_time=start_time)))
@@ -118,6 +120,7 @@ for camera in cameras:
     print("\t{} stills".format(len(still_timestamps)))
     print("\t\t{}".format(plot_timestamps(
         still_timestamps, max_value=24 * 60, start_time=start_time)))
+    print("\t{} duration of recording".format(delta_time))
     camera_data[camera_id] = {
         'mac': mac,
         'module': module_id,

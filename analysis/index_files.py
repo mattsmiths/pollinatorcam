@@ -8,12 +8,48 @@ import sqlite3
 
 data_dir = '/media/graham/377CDC5E2ECAB822'
 dbfn = 'pcam.sqlite'
+camera_info_fn = 'pcam_cameras_arboretum_grid.csv'
+default_start_date = datetime.datetime.strptime('07/31/2020', '%m/%d/%Y')
+default_end_date = datetime.datetime.strptime('10/08/2020', '%m/%d/%Y')
+
 force = True
-debug = True
+debug = False
 
 
 if debug:
     logging.basicConfig(level=logging.DEBUG)
+
+
+def read_camera_info_csv(fn, default_start_date, default_end_date):
+    def get_prefix(m):
+        if m in ('18c0', '1a5d', '1ac3', '1a80'):
+            return "001f5443"
+        # TODO '42b4'  ???
+        return "001f543e"
+
+    header = None
+    info = []
+    with open(fn, 'r') as f:
+        for l in f:
+            if header is None:  # skip first row
+                header = l
+                continue
+            tokens = l.strip().split(',')[:6]
+            assert len(tokens) == 6
+            cid, mac, module, location, start, end = tokens
+            cid = int(cid)
+            mac = "{}{}".format(get_prefix(mac), mac).lower()
+            module = int(module)
+            if len(start.strip()) == 0:
+                start = default_start_date
+            else:
+                start = datetime.datetime.strptime(start, '%m/%d/%Y')
+            if len(end.strip()) == 0:
+                end = default_end_date
+            else:
+                end = datetime.datetime.strptime(end, '%m/%d/%Y')
+            info.append((cid, mac, module, location, start, end))
+    return info
 
 
 def get_modules():
@@ -42,26 +78,56 @@ def index_cameras(db, force=False):
             logging.warning("table cameras already exists, skipping")
             return False
         db.execute("DROP TABLE cameras;");
+    info = read_camera_info_csv(camera_info_fn, default_start_date, default_end_date)
+    # info[] (cid, mac, module, location, start, end)
+    info_by_mac = {i[1]: i for i in info}
+    logging.debug("{} cameras in info".format(len(info)))
     logging.info("creating cameras table")
     db.execute(
         "CREATE TABLE cameras ("
         "camera_id INTEGER PRIMARY KEY,"
         "mac TEXT,"
-        "module INTEGER"
+        "location TEXT,"
+        "module INTEGER,"
+        "start TIMESTAMP,"
+        "end TIMESTAMP"
         ");")
     nc = 0
     modules = get_modules()
+    found = {}
+    extra = {}
     for module_index in modules:
         module_path = modules[module_index]
         logging.debug(f"Searching module {module_index} at {module_path}")
         camera_paths = sorted(glob.glob(os.path.join(module_path, '001f*')))
         for camera_path in camera_paths:
             macaddr = os.path.split(camera_path)[-1]
+            extra[macaddr] = True
             logging.debug(f"Found camera {macaddr} in module {module_index}")
+            if macaddr not in info_by_mac:
+                logging.debug(f"Skipping camera[{macaddr}] that is not in info")
+                continue
+            cid, _, module, location, start, end = info_by_mac[macaddr]
+            if module != module_index:
+                logging.debug(
+                    f"Skipping camera[{macaddr}], " +
+                    f"module mismatch {module} != {module_index}")
+                continue
             db.execute(
-                "INSERT INTO cameras (mac, module) VALUES (?, ?);",
-                (macaddr, module_index))
+                "INSERT INTO cameras (camera_id, mac, location, module, start, end) " +
+                "VALUES (?, ?, ?, ?, ?, ?);",
+                (cid, macaddr, location, module_index, start, end))
+            found[macaddr] = True
+            del extra[macaddr]
             nc += 1
+    #for m in found:
+    #    print("Found {}".format(m))
+    #for i in info:
+    #    m = i[1]
+    #    if m not in found:
+    #        print("Lost {}".format(m))
+    #for m in extra:
+    #    print("Extra {}".format(m))
     logging.info(f"Found {nc} cameras")
 
 
@@ -71,12 +137,15 @@ def get_cameras(db, by_module_mac=True):
     modules = get_modules()
     cameras = []
     for camera_row in db.execute('SELECT * FROM cameras'):
-        camera_id, macaddr, module_index = camera_row
+        camera_id, macaddr, location, module_index, start, end = camera_row
         cameras.append({
             'id': camera_id,
             'macaddr': macaddr,
+            'location': location,
             'module_path': modules[module_index],
             'module_index': module_index,
+            'start': start,
+            'end': end,
         })
     if by_module_mac:
         d = {}
@@ -113,17 +182,23 @@ def index_configs(db, force=False):
     for module_index in modules:
         module_path = modules[module_index]
         logging.debug(f"indexing module {module_index} at {module_path}")
-        camera_config_paths = sorted(glob.glob(os.path.join(module_path, 'configs/001f*')))
+        camera_config_paths = sorted(
+            glob.glob(os.path.join(module_path, 'configs/001f*')))
         for camera_config_path in camera_config_paths:
             logging.debug(f"indexing camera_path {camera_config_path}")
             macaddr = os.path.split(camera_config_path)[-1]
+            if macaddr not in cameras[module_index]:
+                logging.debug(
+                    f"skipping camera {macaddr} in module {module_index} not in info")
+                continue
             config_paths = sorted(glob.glob(os.path.join(camera_config_path, '*_*_*')))
             camera_id = cameras[module_index][macaddr]['id']
             for config_path in config_paths:
                 rpath = os.path.relpath(config_path, data_dir)
                 ts = os.path.split(rpath)[-1]
                 dt = datetime.datetime.strptime(ts, '%y%m%d_%H%M%S_%f')
-                logging.debug(f"Found config for camera {camera_id} at {dt} in file {rpath}")
+                logging.debug(
+                    f"Found config for camera {camera_id} at {dt} in file {rpath}")
                 db.execute(
                     "INSERT INTO configs (camera_id, timestamp, path) VALUES (?, ?, ?)",
                     (camera_id, dt, rpath))
@@ -153,6 +228,10 @@ def index_detections(db, force=False):
         for camera_path in camera_paths:
             logging.debug(f"indexing camera_path {camera_path}")
             macaddr = os.path.split(camera_path)[-1]
+            if macaddr not in cameras[module_index]:
+                logging.debug(
+                    f"skipping camera {macaddr} in module {module_index} not in info")
+                continue
             detection_paths = sorted(glob.glob(os.path.join(camera_path, '*', '*.json')))
             camera_id = cameras[module_index][macaddr]['id']
             for detection_path in detection_paths:
@@ -189,6 +268,10 @@ def index_videos(db, force=False):
         for camera_path in camera_paths:
             logging.debug(f"indexing camera_path {camera_path}")
             macaddr = os.path.split(camera_path)[-1]
+            if macaddr not in cameras[module_index]:
+                logging.debug(
+                    f"skipping camera {macaddr} in module {module_index} not in info")
+                continue
             video_paths = sorted(glob.glob(os.path.join(camera_path, '*', '*.mp4')))
             camera_id = cameras[module_index][macaddr]['id']
             for video_path in video_paths:
@@ -225,6 +308,10 @@ def index_stills(db, force=False):
         for camera_path in camera_paths:
             logging.debug(f"indexing camera_path {camera_path}")
             macaddr = os.path.split(camera_path)[-1]
+            if macaddr not in cameras[module_index]:
+                logging.debug(
+                    f"skipping camera {macaddr} in module {module_index} not in info")
+                continue
             still_paths = sorted(glob.glob(os.path.join(camera_path, '*-*-*', 'pic_001', '*.jpg')))
             camera_id = cameras[module_index][macaddr]['id']
             for still_path in still_paths:
