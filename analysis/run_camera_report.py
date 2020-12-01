@@ -129,3 +129,12 @@ for camera in cameras:
         'videos': video_timestamps,
         'stills': still_timestamps,
     }
+
+print("------")
+print("Total data")
+n_stills = sum([len(camera_data[cid]['stills']) for cid in camera_data])
+n_detections = sum([len(camera_data[cid]['detections']) for cid in camera_data])
+n_videos = sum([len(camera_data[cid]['videos']) for cid in camera_data])
+print(f"\t{n_stills} stills")
+print(f"\t{n_detections} detections")
+print(f"\t{n_videos} videos")
