@@ -7,6 +7,7 @@ Save annotations to database
 """
 
 import copy
+import datetime
 import glob
 import json
 import logging
@@ -16,21 +17,18 @@ import sqlite3
 import subprocess
 
 
-camera_id = 0
-date = '2020-07-31'
+camera_id = 10
+date = '2020-09-20'
 first_hour = 5
 last_hour = 20
 
 data_dir = '/media/graham/377CDC5E2ECAB822'
-db_fn = 'pcam.sqlite3'
+db_fn = 'pcam.sqlite'
 tempdir = 'tmp'
 
 day = datetime.datetime.strptime(date, '%Y-%m-%d')
 min_time = day + datetime.timedelta(hours=first_hour)
 max_time = day + datetime.timedelta(hours=last_hour)
-
-min_time = datetime.timedelta(days=
-max_time = 
 
 db = sqlite3.connect(db_fn, detect_types=sqlite3.PARSE_DECLTYPES)
 
@@ -122,7 +120,7 @@ file_infos = []
 for s in db.execute(
         "SELECT * FROM stills WHERE "
         "camera_id=? AND "
-        "timestamp>=? AND timestamp<=?",
+        "timestamp>=? AND timestamp<=?;",
         (camera_id, min_time, max_time)):
     still_id, camera_id, timestamp, path = s
     file_infos.append({
@@ -130,6 +128,9 @@ for s in db.execute(
         'timestamp': timestamp,
         'camera_id': camera_id,
         'still_id': still_id})
+if len(file_infos) == 0:
+    raise Exception("No files found")
+print("{} files found".format(len(file_infos)))
 #images_dir = 'images/'
 #fns = sorted(glob.glob(os.path.join(images_dir + '*')))
 
@@ -144,7 +145,7 @@ for tfn in os.listdir(tempdir):
 #ndigits = int(math.log10(len(fns)) + 1)
 ndigits = int(math.log10(len(file_infos)) + 1)
 fn_indices = {}
-for (index, fi) in enumerate(file_info):
+for (index, fi) in enumerate(file_infos):
     fn = fi['path']
     ts = fi['timestamp'].strftime('%y%m%d_%H%M')
     ext = os.path.splitext(fn)[1].strip('.')
