@@ -16,6 +16,24 @@ import sqlite3
 import subprocess
 
 
+camera_id = 0
+date = '2020-07-31'
+first_hour = 5
+last_hour = 20
+
+data_dir = '/media/graham/377CDC5E2ECAB822'
+db_fn = 'pcam.sqlite3'
+tempdir = 'tmp'
+
+day = datetime.datetime.strptime(date, '%Y-%m-%d')
+min_time = day + datetime.timedelta(hours=first_hour)
+max_time = day + datetime.timedelta(hours=last_hour)
+
+min_time = datetime.timedelta(days=
+max_time = 
+
+db = sqlite3.connect(db_fn, detect_types=sqlite3.PARSE_DECLTYPES)
+
 logging.basicConfig(level=logging.DEBUG)
 
 tags = {0: 'note', 1: 'start', 2: 'end'}
@@ -39,13 +57,6 @@ flags_template = {name: False for name in iter(tags.values())}
 
 rtags = {v: k for (k, v) in tags.items()}
 rlabels = {v: k for (k, v) in labels.items()}
-
-# TODO convert to use database for actual dataset
-db_fn = 'db.sqlite3'
-images_dir = 'images/'
-tempdir = 'tmp'
-
-db = sqlite3.connect(db_fn)
 
 
 def table_exists(db, table_name):
@@ -106,7 +117,22 @@ if not table_exists(db, 'labels'):
         ");")
     db.commit()
 
-fns = sorted(glob.glob(os.path.join(images_dir + '*')))
+# get fns from database selecting for camera and time
+file_infos = []
+for s in db.execute(
+        "SELECT * FROM stills WHERE "
+        "camera_id=? AND "
+        "timestamp>=? AND timestamp<=?",
+        (camera_id, min_time, max_time)):
+    still_id, camera_id, timestamp, path = s
+    file_infos.append({
+        'path': os.path.join(data_dir, path),
+        'timestamp': timestamp,
+        'camera_id': camera_id,
+        'still_id': still_id})
+#images_dir = 'images/'
+#fns = sorted(glob.glob(os.path.join(images_dir + '*')))
+
 if not os.path.exists(tempdir):
     os.makedirs(tempdir)
 
@@ -115,13 +141,19 @@ for tfn in os.listdir(tempdir):
     os.remove(os.path.join(tempdir, tfn))
 
 # symlink files to temp directory
-ndigits = int(math.log10(len(fns)) + 1)
+#ndigits = int(math.log10(len(fns)) + 1)
+ndigits = int(math.log10(len(file_infos)) + 1)
 fn_indices = {}
-for (index, fn) in enumerate(fns):
+for (index, fi) in enumerate(file_info):
+    fn = fi['path']
+    ts = fi['timestamp'].strftime('%y%m%d_%H%M')
     ext = os.path.splitext(fn)[1].strip('.')
-    tfn = '.'.join((str(index).zfill(ndigits), ext))
 
-    # TODO make filename more descriptive: add id
+    # make descriptive filename: add time
+    tfn = '.'.join((
+        str(index).zfill(ndigits) + '_' + ts,
+        ext))
+
     os.symlink(os.path.abspath(fn), os.path.join(tempdir, tfn))
     fn_indices[tfn] = index
 
