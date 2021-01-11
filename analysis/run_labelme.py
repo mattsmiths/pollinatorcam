@@ -18,7 +18,7 @@ import subprocess
 
 
 camera_id = 10
-date = '2020-09-20'
+date = '2020-09-23'
 first_hour = 5
 last_hour = 20
 
@@ -148,6 +148,7 @@ fn_indices = {}
 for (index, fi) in enumerate(file_infos):
     fn = fi['path']
     ts = fi['timestamp'].strftime('%y%m%d_%H%M')
+    still_id = fi['still_id']
     ext = os.path.splitext(fn)[1].strip('.')
 
     # make descriptive filename: add time
@@ -159,13 +160,13 @@ for (index, fi) in enumerate(file_infos):
     fn_indices[tfn] = index
 
     previous_tags = []
-    for r in db.execute("SELECT tag_id FROM tags WHERE still_id=?", (index, )):
-        logging.debug(f"Found previous tag {r} for {index}")
+    for r in db.execute("SELECT tag_id FROM tags WHERE still_id=?", (still_id, )):
+        logging.debug(f"Found previous tag {r} for {still_id}")
         previous_tags.append(tags[r[0]])
 
     previous_labels = []
-    for r in db.execute("SELECT label_id, x, y FROM labels WHERE still_id=?", (index, )):
-        logging.debug(f"Found previous point {r} for {index}")
+    for r in db.execute("SELECT label_id, x, y FROM labels WHERE still_id=?", (still_id, )):
+        logging.debug(f"Found previous point {r} for {still_id}")
         previous_labels.append({
             'name': labels[r[0]],
             'xy': (r[1], r[2]),
@@ -191,8 +192,8 @@ for (index, fi) in enumerate(file_infos):
 cmd = [
     "labelme",
     tempdir,
-    "--nodata",
-    "--autosave",
+    "--config",
+    "labelmerc",
     "--flags",
     ",".join(sorted(list(tags.values()))),
     "--labels",
@@ -207,7 +208,9 @@ for afn in annotation_filenames:
     with open(afn, 'r') as f:
         data = json.load(f)
 
-        still_id = fn_indices[data["imagePath"]]
+        index = fn_indices[data["imagePath"]]
+        info = file_infos[index]
+        still_id = info['still_id']
         logging.debug(f"Found annotations for {still_id}")
 
         # save flags
