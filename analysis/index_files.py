@@ -319,7 +319,7 @@ def index_stills(db, force=False):
                 ds, _, fn = rpath.split(os.path.sep)[-3:]
                 ts = '_'.join((ds, fn.split('[')[0]))
                 dt = datetime.datetime.strptime(ts, '%Y-%m-%d_%H.%M.%S')
-                if os.path.getsize(rpath) == 0:
+                if os.path.getsize(still_path) == 0:
                     logging.error(f"0 size still at {rpath}")
                 logging.debug(f"Found still for camera {camera_id} at {dt} in file {rpath}")
                 db.execute(
