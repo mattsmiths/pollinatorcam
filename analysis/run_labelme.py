@@ -304,4 +304,4 @@ db.close()
 next_day = day + datetime.timedelta(days=1)
 next_day_str = next_day.strftime('%y%m%d')
 logging.info(f"Setting date environment variable to {next_day_str}")
-os.environ.set('PCAM_LM_DATE', next_day_str)
+os.environ['PCAM_LM_DATE'] = next_day_str
