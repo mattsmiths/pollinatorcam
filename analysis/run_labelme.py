@@ -40,26 +40,31 @@ import subprocess
 
 
 options = [
-    ('camera_id', 'c', int(os.environ.get('PCAM_LM_CAMERA_ID', '10'))),
-    ('date', 'd', os.environ.get('PCAM_LM_DATE', '200923')),
-    ('first_hour', 'f', int(os.environ.get('PCAM_LM_FIRST_HOUR', '5'))),
-    ('last_hour', 'l', int(os.environ.get('PCAM_LM_LAST_HOUR', '20'))),
-    ('data_dir', 'D', os.environ.get(
-        'PCAM_LM_DATA_DIR', '/media/graham/377CDC5E2ECAB822')),
-    ('database_filename', 'b', os.environ.get(
-        'PCAM_LM_DATABASE_FILENAME', 'pcam.sqlite')),
-    ('tmp_dir', 't', os.environ.get('PCAM_LM_TMP_DIR', 'tmp')),
+    ('camera_id', 'c', '10'),
+    ('date', 'd', '200923'),
+    ('first_hour', 'f', 5),
+    ('last_hour', 'l', 20),
+    ('data_dir', 'D', '/media/graham/377CDC5E2ECAB822'),
+    ('database_filename', 'b', 'pcam.sqlite'),
+    ('tmp_dir', 't', 'tmp'),
 ]
+
+cfg_fn = os.path.expanduser('~/.pcam_run_labelme.json')
+if os.path.exists(cfg_fn):
+    with open(cfg_fn, 'r') as f:
+        cfg = json.load(f)
+else:
+    cfg = {}
 
 parser = argparse.ArgumentParser()
 for option in options:
     name, short_name, default = option
     parser.add_argument(
-        f'-{short_name}', f'--{name}', default=default, type=type(default))
+        f'-{short_name}', f'--{name}',
+        default=cfg.get(name, default), type=type(default))
 
 parser.add_argument(
-    '-v', '--verbose',
-    default=os.environ.get('PCAM_LM_VERBOSE', False), action='store_true')
+    '-v', '--verbose', default=False, action='store_true')
 
 args = parser.parse_args()
 if args.verbose:
@@ -300,8 +305,16 @@ for afn in annotation_filenames:
 db.commit()
 db.close()
 
-# everything finished, increment date
+# everything finished, increment date, write options to file
 next_day = day + datetime.timedelta(days=1)
 next_day_str = next_day.strftime('%y%m%d')
-logging.info(f"Setting date environment variable to {next_day_str}")
-os.environ['PCAM_LM_DATE'] = next_day_str
+logging.debug(f"Incrementing day {next_day_str}")
+for option in options:
+    name, _, default = option
+    if name == 'date':
+        cfg[name] = next_day_str
+    else:
+        cfg[name] = getattr(args, name)
+with open(cfg_fn, 'w') as f:
+    logging.debug(f"Writing to {cfg_fn}: {cfg}")
+    json.dump(cfg, f)
