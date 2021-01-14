@@ -4,8 +4,30 @@ Symlink images to temporary folder
 Run labelme to annotate images
 Parse labelme annotations
 Save annotations to database
+
+run_labelme.py
+  -c <camera_id>
+  -d <date as YYMMDD>
+  -f <first hour> -l <last hour>
+  -s <data source/directory>
+  -D <database file path>
+
+cmd args take precedence
+
+if cmd args are not there check env variables
+PCAM_LM_CAMERA_ID
+PCAM_LM_DATE
+PCAM_LM_FIRST_HOUR
+PCAM_LM_LAST_HOUR
+PCAM_LM_DATA_DIR
+PCAM_LM_DATABASE_FILENAME
+
+finally use defaults
+
+if a day successfully finishes, increment the day and save to env
 """
 
+import argparse
 import copy
 import datetime
 import glob
@@ -17,22 +39,39 @@ import sqlite3
 import subprocess
 
 
-camera_id = 10
-date = '2020-09-23'
-first_hour = 5
-last_hour = 20
+options = [
+    ('camera_id', 'c', int(os.environ.get('PCAM_LM_CAMERA_ID', '10'))),
+    ('date', 'd', os.environ.get('PCAM_LM_DATE', '200923')),
+    ('first_hour', 'f', int(os.environ.get('PCAM_LM_FIRST_HOUR', '5'))),
+    ('last_hour', 'l', int(os.environ.get('PCAM_LM_LAST_HOUR', '20'))),
+    ('data_dir', 'D', os.environ.get(
+        'PCAM_LM_DATA_DIR', '/media/graham/377CDC5E2ECAB822')),
+    ('database_filename', 'b', os.environ.get(
+        'PCAM_LM_DATABASE_FILENAME', 'pcam.sqlite')),
+    ('tmp_dir', 't', os.environ.get('PCAM_LM_TMP_DIR', 'tmp')),
+]
 
-data_dir = '/media/graham/377CDC5E2ECAB822'
-db_fn = 'pcam.sqlite'
-tempdir = 'tmp'
+parser = argparse.ArgumentParser()
+for option in options:
+    name, short_name, default = option
+    parser.add_argument(
+        f'-{short_name}', f'--{name}', default=default, type=type(default))
 
-day = datetime.datetime.strptime(date, '%Y-%m-%d')
-min_time = day + datetime.timedelta(hours=first_hour)
-max_time = day + datetime.timedelta(hours=last_hour)
+parser.add_argument(
+    '-v', '--verbose',
+    default=os.environ.get('PCAM_LM_VERBOSE', False), action='store_true')
 
-db = sqlite3.connect(db_fn, detect_types=sqlite3.PARSE_DECLTYPES)
+args = parser.parse_args()
+if args.verbose:
+    logging.basicConfig(level=logging.DEBUG)
+logging.info(f"Running with options: {vars(args)}")
 
-logging.basicConfig(level=logging.DEBUG)
+day = datetime.datetime.strptime(args.date, '%y%m%d')
+min_time = day + datetime.timedelta(hours=args.first_hour)
+max_time = day + datetime.timedelta(hours=args.last_hour)
+
+db = sqlite3.connect(args.database_filename, detect_types=sqlite3.PARSE_DECLTYPES)
+
 
 tags = {0: 'note', 1: 'start', 2: 'end'}
 labels = {0: 'note', 1: 'flower', 2: 'pollinator'}
@@ -121,12 +160,12 @@ for s in db.execute(
         "SELECT * FROM stills WHERE "
         "camera_id=? AND "
         "timestamp>=? AND timestamp<=?;",
-        (camera_id, min_time, max_time)):
-    still_id, camera_id, timestamp, path = s
+        (args.camera_id, min_time, max_time)):
+    still_id, args.camera_id, timestamp, path = s
     file_infos.append({
-        'path': os.path.join(data_dir, path),
+        'path': os.path.join(args.data_dir, path),
         'timestamp': timestamp,
-        'camera_id': camera_id,
+        'camera_id': args.camera_id,
         'still_id': still_id})
 if len(file_infos) == 0:
     raise Exception("No files found")
@@ -134,17 +173,18 @@ print("{} files found".format(len(file_infos)))
 #images_dir = 'images/'
 #fns = sorted(glob.glob(os.path.join(images_dir + '*')))
 
-if not os.path.exists(tempdir):
-    os.makedirs(tempdir)
+if not os.path.exists(args.tmp_dir):
+    os.makedirs(args.tmp_dir)
 
 # clean up files in temp directory
-for tfn in os.listdir(tempdir):
-    os.remove(os.path.join(tempdir, tfn))
+for tfn in os.listdir(args.tmp_dir):
+    os.remove(os.path.join(args.tmp_dir, tfn))
 
 # symlink files to temp directory
 #ndigits = int(math.log10(len(fns)) + 1)
 ndigits = int(math.log10(len(file_infos)) + 1)
 fn_indices = {}
+previously_annotated_images = set()
 for (index, fi) in enumerate(file_infos):
     fn = fi['path']
     ts = fi['timestamp'].strftime('%y%m%d_%H%M')
@@ -153,20 +193,23 @@ for (index, fi) in enumerate(file_infos):
 
     # make descriptive filename: add time
     tfn = '.'.join((
-        str(index).zfill(ndigits) + '_' + ts,
+        str(index).zfill(ndigits) +
+        f'_{args.camera_id}_{ts}',
         ext))
 
-    os.symlink(os.path.abspath(fn), os.path.join(tempdir, tfn))
+    os.symlink(os.path.abspath(fn), os.path.join(args.tmp_dir, tfn))
     fn_indices[tfn] = index
 
     previous_tags = []
     for r in db.execute("SELECT tag_id FROM tags WHERE still_id=?", (still_id, )):
         logging.debug(f"Found previous tag {r} for {still_id}")
+        previously_annotated_images.add(still_id)
         previous_tags.append(tags[r[0]])
 
     previous_labels = []
     for r in db.execute("SELECT label_id, x, y FROM labels WHERE still_id=?", (still_id, )):
         logging.debug(f"Found previous point {r} for {still_id}")
+        previously_annotated_images.add(still_id)
         previous_labels.append({
             'name': labels[r[0]],
             'xy': (r[1], r[2]),
@@ -184,14 +227,14 @@ for (index, fi) in enumerate(file_infos):
             shape["points"].append(label["xy"])
             annotation['shapes'].append(shape)
         annotation["imagePath"] = tfn
-        jfn = os.path.join(tempdir, os.path.splitext(tfn)[0] + ".json")
+        jfn = os.path.join(args.tmp_dir, os.path.splitext(tfn)[0] + ".json")
         with open(jfn, "w") as f:
             json.dump(annotation, f)
 
 # run labelme to annotate images
 cmd = [
     "labelme",
-    tempdir,
+    args.tmp_dir,
     "--config",
     "labelmerc",
     "--flags",
@@ -201,8 +244,14 @@ cmd = [
 ]
 subprocess.check_call(cmd)
 
+# remove all old annotations for this camera/date
+for still_id in previously_annotated_images:
+    logging.debug(f"Removing previous annotations for {still_id}")
+    db.execute("DELETE FROM tags WHERE still_id=?", (still_id, ))
+    db.execute("DELETE FROM labels WHERE still_id=?", (still_id, ))
+
 # parse annotations
-annotation_filenames = sorted(glob.glob(os.path.join(tempdir, '*.json')))
+annotation_filenames = sorted(glob.glob(os.path.join(args.tmp_dir, '*.json')))
 for afn in annotation_filenames:
     # load and parse annotation
     with open(afn, 'r') as f:
@@ -250,3 +299,9 @@ for afn in annotation_filenames:
 # write annotations to disk
 db.commit()
 db.close()
+
+# everything finished, increment date
+next_day = day + datetime.timedelta(days=1)
+next_day_str = next_day.strftime('%y%m%d')
+logging.info(f"Setting date environment variable to {next_day_str}")
+os.environ.set('PCAM_LM_DATE', next_day_str)
