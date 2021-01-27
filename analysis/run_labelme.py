@@ -65,6 +65,9 @@ for option in options:
 
 parser.add_argument(
     '-v', '--verbose', default=False, action='store_true')
+parser.add_argument(
+    '-r', '--resume', default=False, action='store_true',
+    help="Resume from a previous (crashed) annotation")
 
 args = parser.parse_args()
 if args.verbose:
@@ -182,8 +185,12 @@ if not os.path.exists(args.tmp_dir):
     os.makedirs(args.tmp_dir)
 
 # clean up files in temp directory
-for tfn in os.listdir(args.tmp_dir):
-    os.remove(os.path.join(args.tmp_dir, tfn))
+if args.resume:
+    print("Resuming previous annotation, keeping old files")
+else:
+    for tfn in os.listdir(args.tmp_dir):
+        os.remove(os.path.join(args.tmp_dir, tfn))
+
 
 # symlink files to temp directory
 #ndigits = int(math.log10(len(fns)) + 1)
@@ -221,7 +228,7 @@ for (index, fi) in enumerate(file_infos):
         })
 
     # write out json for any previous annotations
-    if len(previous_tags) or len(previous_labels):
+    if len(previous_tags) or len(previous_labels) and not args.resume:
         annotation = copy.deepcopy(annotation_template)
         annotation['flags'] = copy.deepcopy(flags_template)
         for tag in previous_tags:
