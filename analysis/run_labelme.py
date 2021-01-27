@@ -187,6 +187,11 @@ if not os.path.exists(args.tmp_dir):
 # clean up files in temp directory
 if args.resume:
     print("Resuming previous annotation, keeping old files")
+    for tfn in os.listdir(args.tmp_dir):
+        # add all image files to list to check that these match
+        # what should be added
+        if os.path.splitext(tfn)[1] == '.jpg':
+            previous_image_fns.append(tfn)
 else:
     for tfn in os.listdir(args.tmp_dir):
         os.remove(os.path.join(args.tmp_dir, tfn))
@@ -212,6 +217,15 @@ for (index, fi) in enumerate(file_infos):
     os.symlink(os.path.abspath(fn), os.path.join(args.tmp_dir, tfn))
     fn_indices[tfn] = index
 
+    if args.resume:
+        try:
+            previous_image_fns.remove(tfn)
+        except ValueError:
+            # found file in db that wasn't in temp files
+            print("Failing to resume because temp files do not match db files")
+            raise Exception(f"Found file in db that wasn't in temp files: {tfn}")
+        continue
+
     previous_tags = []
     for r in db.execute("SELECT tag_id FROM tags WHERE still_id=?", (still_id, )):
         logging.debug(f"Found previous tag {r} for {still_id}")
@@ -228,7 +242,7 @@ for (index, fi) in enumerate(file_infos):
         })
 
     # write out json for any previous annotations
-    if len(previous_tags) or len(previous_labels) and not args.resume:
+    if len(previous_tags) or len(previous_labels):
         annotation = copy.deepcopy(annotation_template)
         annotation['flags'] = copy.deepcopy(flags_template)
         for tag in previous_tags:
@@ -242,6 +256,10 @@ for (index, fi) in enumerate(file_infos):
         jfn = os.path.join(args.tmp_dir, os.path.splitext(tfn)[0] + ".json")
         with open(jfn, "w") as f:
             json.dump(annotation, f)
+
+if len(previous_image_fns) != 0:
+    print("Files in tmp that weren't in db: ", previous_image_fns)
+    raise Exception("Failing to resume because not all temp files were found in db")
 
 # run labelme to annotate images
 cmd = [
