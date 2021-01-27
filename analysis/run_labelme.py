@@ -186,6 +186,7 @@ if not os.path.exists(args.tmp_dir):
 
 # clean up files in temp directory
 if args.resume:
+    previous_image_fns = []
     print("Resuming previous annotation, keeping old files")
     for tfn in os.listdir(args.tmp_dir):
         # add all image files to list to check that these match
@@ -214,7 +215,6 @@ for (index, fi) in enumerate(file_infos):
         f'_{args.camera_id}_{ts}',
         ext))
 
-    os.symlink(os.path.abspath(fn), os.path.join(args.tmp_dir, tfn))
     fn_indices[tfn] = index
 
     if args.resume:
@@ -225,6 +225,8 @@ for (index, fi) in enumerate(file_infos):
             print("Failing to resume because temp files do not match db files")
             raise Exception(f"Found file in db that wasn't in temp files: {tfn}")
         continue
+
+    os.symlink(os.path.abspath(fn), os.path.join(args.tmp_dir, tfn))
 
     previous_tags = []
     for r in db.execute("SELECT tag_id FROM tags WHERE still_id=?", (still_id, )):
@@ -257,7 +259,7 @@ for (index, fi) in enumerate(file_infos):
         with open(jfn, "w") as f:
             json.dump(annotation, f)
 
-if len(previous_image_fns) != 0:
+if args.resume and len(previous_image_fns) != 0:
     print("Files in tmp that weren't in db: ", previous_image_fns)
     raise Exception("Failing to resume because not all temp files were found in db")
 
