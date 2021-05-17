@@ -11,9 +11,10 @@ labels_by_code = dict(db.execute(
 # count bounding boxes by species
 counts_by_label_id = db.execute(
     "SELECT label_id, COUNT(*) FROM bboxes GROUP BY label_id").fetchall()
+counts_by_label_id = sorted(counts_by_label_id, key=lambda i: i[1])
 
 print("Per-species bounding box counts")
 for count_result in counts_by_label_id:
     label_id, count = count_result
     name = labels_by_code[label_id]
-    print(f"\t{count}: {name}")
+    print(f"\t{count}:\t{name}")
