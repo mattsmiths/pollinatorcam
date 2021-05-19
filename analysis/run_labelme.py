@@ -356,11 +356,13 @@ if args.resume and len(previous_image_fns) != 0:
 # run labelme to annotate images
 # some tag and label names have spaces, will these work in command or
 # will they need to be written to a separate file?
-tag_names = "'" + ",".join(sorted(list(tags.values()))) + "'"
-label_names = (
-    "'" +
-    ",".join(sorted(set(labels.values()).union(set(bbox_labels.values())))) +
-    ",")
+#tag_names = "'" + ",".join(sorted(list(tags.values()))) + "'"
+tag_names = ",".join(sorted(list(tags.values())))
+#label_names = (
+#    "'" +
+#    ",".join(sorted(set(labels.values()).union(set(bbox_labels.values())))) +
+#    ",")
+label_names = ",".join(sorted(set(labels.values()).union(set(bbox_labels.values()))))
 cmd = [
     "labelme",
     args.tmp_dir,
