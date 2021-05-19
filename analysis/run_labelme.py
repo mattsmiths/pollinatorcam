@@ -69,7 +69,7 @@ parser.add_argument(
     '-r', '--resume', default=False, action='store_true',
     help="Resume from a previous (crashed) annotation")
 parser.add_argument(
-    '-s', '--start_end_limit', default=False, action='sore_true',
+    '-s', '--start_end_limit', default=False, action='store_true',
     help="Limit images to those between start and end tags")
 
 args = parser.parse_args()
@@ -170,6 +170,8 @@ def load_lookups_from_table(table_name):
     table = dict(db.execute("SELECT * FROM " + table_name).fetchall())
     rtable = {v: k for (k, v) in table.items()}
     assert len(table) == len(rtable)
+    return table, rtable
+
 
 tags, rtags = load_lookups_from_table('tag_names')
 labels, rlabels = load_lookups_from_table('label_names')
@@ -235,6 +237,8 @@ for s in db.execute(
         if not found_start:
             if rtags['start'] in image_tags:
                 found_start = True
+            else:
+                continue
         else:
             if rtags['end'] in image_tags:
                 found_end = True
@@ -314,7 +318,7 @@ for (index, fi) in enumerate(file_infos):
 
     previous_bboxes = []
     for r in db.execute(
-            "SELECT bbox_id, left, top, right, bottom FROM bboxes WHERE still_id=?",
+            "SELECT label_id, left, top, right, bottom FROM bboxes WHERE still_id=?",
             (still_id, )):
         logging.debug(f"Found previous bboxes {r} for {still_id}")
         previously_annotated_images.add(still_id)
@@ -339,6 +343,7 @@ for (index, fi) in enumerate(file_infos):
             shape['shape_type'] = 'rectangle'
             shape['label'] = bbox['name']
             shape['points'] = bbox['points']
+            annotation['shapes'].append(shape)
         annotation["imagePath"] = tfn
         jfn = os.path.join(args.tmp_dir, os.path.splitext(tfn)[0] + ".json")
         with open(jfn, "w") as f:
@@ -351,7 +356,7 @@ if args.resume and len(previous_image_fns) != 0:
 # run labelme to annotate images
 # some tag and label names have spaces, will these work in command or
 # will they need to be written to a separate file?
-tag_names = "'" + ",".join(sorted(list(tags.values))) + "'"
+tag_names = "'" + ",".join(sorted(list(tags.values()))) + "'"
 label_names = (
     "'" +
     ",".join(sorted(set(labels.values()).union(set(bbox_labels.values())))) +
@@ -443,7 +448,7 @@ for afn in annotation_filenames:
                     # reload labels
                     bbox_labels, rbbox_labels = load_lookups_from_table('bbox_labels')
                 label_id = rbbox_labels[s['label']]
-                datum = (still_id, bbox_label_id, left, top, right, bottom)
+                datum = (still_id, label_id, left, top, right, bottom)
                 if not db.execute(
                         "SELECT bbox_id FROM bboxes WHERE "
                         "still_id=? AND label_id=? AND left=? AND top=? "
