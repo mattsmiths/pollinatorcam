@@ -5,12 +5,20 @@ import sqlite3
 import sys
 import time
 
-raise Exception("This does not correctly handle the PRIMARY KEY designations for tables")
 
 db_fn = 'pcam.sqlite'
-annotations_db_fn = '210406.sqlite'
+annotations_db_fn = '210406_with_210525_flowers_fixed_schema_210621.sqlite'
 
 tables = ('tags', 'tag_names', 'labels', 'label_names', 'bboxes', 'bbox_labels')
+schema_by_table = {
+    'tags': "CREATE TABLE {} (annotation_id INTEGER PRIMARY KEY, still_id INTEGER, tag_id INTEGER);",
+    'tag_names': "CREATE TABLE {} (tag_id INTEGER PRIMARY KEY, name TEXT);",
+    'labels': "CREATE TABLE {} (annotation_id INTEGER PRIMARY KEY, still_id INTEGER, label_id INTEGER, x INTEGER, y INTEGER);",
+    'label_names': "CREATE TABLE {} (label_id INTEGER PRIMARY KEY, name TEXT);",
+    'bboxes': "CREATE TABLE {} (bbox_id INTEGER PRIMARY KEY, still_id INTEGER, label_id INTEGER, left REAL, top REAL, right REAL, bottom REAL);",
+    'bbox_labels': "CREATE TABLE {} (bbox_label_id INTEGER PRIMARY KEY, name TEXT);",
+}
+assert all([t in schema_by_table for t in tables]) 
 
 response = None
 while response is None:
@@ -39,9 +47,11 @@ original_db.execute("ATTACH DATABASE '" + annotations_db_fn + "' AS other;")
 # create tables in original database
 for table_name in tables:
     print(f"copying {table_name}")
-    original_db.execute(
-        f"CREATE TABLE IF NOT EXISTS {table_name} " +
-        f"AS SELECT * FROM other.{table_name} WHERE 0;")
+    #original_db.execute(
+    #    f"CREATE TABLE IF NOT EXISTS {table_name} " +
+    #    f"AS SELECT * FROM other.{table_name} WHERE 0;")
+    schema = schema_by_table[table_name].format(table_name)
+    original_db.execute(schema)
     original_db.execute(f"INSERT INTO {table_name} SELECT * FROM other.{table_name}")
 
 original_db.commit()
