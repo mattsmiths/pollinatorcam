@@ -161,7 +161,7 @@ if not table_exists(db, 'bboxes'):
         "left REAL,"
         "top REAL,"
         "right REAL,"
-        "bottom, REAL"
+        "bottom REAL"
         ");")
     db.commit()
 
