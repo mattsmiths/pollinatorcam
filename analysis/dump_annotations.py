@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import time
 
+raise Exception("Failed to copy PRIMARY KEY column attribute")
 
 ts = datetime.datetime.now().strftime('%y%m%d')
 db_fn = 'pcam.sqlite'
