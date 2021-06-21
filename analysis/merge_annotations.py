@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import time
 
+raise Exception("This does not correctly handle the PRIMARY KEY designations for tables")
 
 db_fn = 'pcam.sqlite'
 annotations_db_fn = '210406.sqlite'
