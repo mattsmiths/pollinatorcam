@@ -170,7 +170,7 @@ def add_annotations_to_db(db, annotations):
             "left REAL,"
             "top REAL,"
             "right REAL,"
-            "bottom, REAL"
+            "bottom REAL"
             ");")
         db.commit()
 
