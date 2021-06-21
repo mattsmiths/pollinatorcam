@@ -54,6 +54,12 @@ for table_row in db.execute("SELECT * FROM sqlite_master WHERE type='table';").f
     # check for 'bad' values: where primary key is None or not unique
     primary_key = primary_keys_by_table[name]
 
+    # TODO options to renumber?
+    # for 'tags' renumber all items that have annotation_id IS None
+    # for 'tags' renumber all non-unique annotation_id items
+    # for 'labels' renumber all items that have label_id IS None
+    # for '
+
     # check for values where what should be the primary key is None
     bad_values = db.execute(f'SELECT * FROM {name} WHERE {primary_key} IS ?', (None, )).fetchall()
     if len(bad_values):

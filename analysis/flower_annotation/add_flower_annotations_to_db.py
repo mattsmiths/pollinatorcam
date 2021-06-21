@@ -6,8 +6,8 @@ import sqlite3
 
 
 database_filename = '../pcam.sqlite'
-annotations_db_filename = '../210406.sqlite'
-annotation_directory = 'flower_annotations_210512'
+annotations_db_filename = '../210406_fixed_schema_210621.sqlite'
+annotation_directory = 'flower_annotations_210525'
 
 dataset_db = sqlite3.connect(database_filename, detect_types=sqlite3.PARSE_DECLTYPES)
 annotations_db = sqlite3.connect(annotations_db_filename, detect_types=sqlite3.PARSE_DECLTYPES)
@@ -177,7 +177,7 @@ def add_annotations_to_db(db, annotations):
     tags_by_code, tags_by_name = read_tag_names(db)
     labels_by_code, labels_by_label = read_bbox_labels(db)
 
-    next_tag_id = db.execute("SELECT MAX(tag_id) FROM tags").fetchone()[0]
+    next_tag_id = db.execute("SELECT MAX(annotation_id) FROM tags").fetchone()[0]
     if next_tag_id is None:
         next_tag_id = 0
     else:
