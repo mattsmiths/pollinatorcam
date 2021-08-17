@@ -93,7 +93,7 @@ sudo mkfs.ntfs -f /dev/sda1
 Mount storage location
 
 ```bash
-echo "/dev/sda1 /mnt/data auto defaults,user,uid=1000,gid=117,umask=002  0 0" | sudo tee -a /etc/fstab
+echo "/dev/sda1 /mnt/data auto defaults,user,uid=1000,gid=124,umask=002  0 0" | sudo tee -a /etc/fstab
 sudo mkdir /mnt/data
 sudo mount /mnt/data
 ```
