@@ -179,6 +179,11 @@ for tag in tags:
     annotation_id, still_id, tag_id = tag
     name = tag_code_to_name[tag_id]
     print(f"\tImage {still_id} has tag {name}[{tag_id}]")
+    if name in ('start', 'end'):
+        # find timestamp for the corresponding still image
+        timestamp = db.execute(
+            'SELECT timestamp FROM stills WHERE still_id=?', (still_id, )).fetchone()[0]
+        print(f"\t\t{name} tag at {timestamp}")
 
 print("Labels:")
 for label in labels:
