@@ -67,13 +67,14 @@ and some tables added to store annotations:
         - tag_id:
 """
 
-import sqlite
+import datetime
+import sqlite3
 
 
 fn = 'pcam_210625.sqlite'
 
 # open the database and auto-detect some datatypes (like timestamps)
-db = sqlite.connect(fn, detect_types=sqlite3.PARSE_DECLTYPES)
+db = sqlite3.connect(fn, detect_types=sqlite3.PARSE_DECLTYPES)
 
 # fetch all table names (sqlite returns rows as lists so get the 1st column of each)
 table_names = [
@@ -97,10 +98,10 @@ for (i, name) in enumerate(col_names):
 
 # the cursor can be used to fetch all the data
 camera_info = cursor.fetchall()
-print(" and {len(camera_info)} rows")
+print(f" and {len(camera_info)} rows")
 
 # find a specific camera
-camera_row = [row for row in camera_info if row[1]] == '001f543e36f9']
+camera_row = [row for row in camera_info if row[1] == '001f543e36f9']
 print("Info for 1 camera:")
 for (i, col) in enumerate(camera_row):
     print(f"\t{i}[{col_names[i]}] = {col}")
@@ -158,9 +159,9 @@ bboxes = db.execute(
             SELECT still_id FROM stills
                 WHERE camera_id=? AND timestamp>=? AND timestamp<?)
     """, (camera_id, start, end)).fetchall()
-print(f"Found {len(tags} tags")
-print(f"Found {len(labels} labels")
-print(f"Found {len(bboxes} bboxes")
+print(f"Found {len(tags)} tags")
+print(f"Found {len(labels)} labels")
+print(f"Found {len(bboxes)} bboxes")
 
 # Now get and print out information for each annotation.
 # Before we do that, let's fetch some information about how the annotations are encoded.
@@ -177,13 +178,13 @@ print("Tags:")
 for tag in tags:
     annotation_id, still_id, tag_id = tag
     name = tag_code_to_name[tag_id]
-    print(f"\tImage {still_id} has tag {name}[{tag_id}]"
+    print(f"\tImage {still_id} has tag {name}[{tag_id}]")
 
 print("Labels:")
 for label in labels:
     annotation_id, still_id, label_id, x, y = label
     name = label_code_to_name[label_id]
-    print(f"\tImage {still_id} has label {name}[{label_id}] at pixel ({x}, {y})"
+    print(f"\tImage {still_id} has label {name}[{label_id}] at pixel ({x}, {y})")
 
 print("Bounding boxes:")
 for bbox in bboxes:
