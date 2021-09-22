@@ -9,62 +9,65 @@ necessarily the same order as the columns in the table (the first column describ
 not necessarily column 1).
 
 There are a few tables that were generated when the raw data was 'indexed':
-    - cameras:
-        - camera_id:
-        - mac:
-        - module:
-        - location:
-        - start:
-        - end:
-    - configs:
-        - config_id:
-        - camera_id:
-        - timestamp:
-        - path:
-    - detections:
-        - detection_id:
-        - camera_id:
-        - timestamp:
-        - path:
-    - stills:
-        - still_id:
-        - camera_id:
-        - timestamp:
-        - path:
-    - videos
-        - video_id:
-        - camera_id:
-        - timestamp:
-        - path:
+    - cameras: camera information table
+        - camera_id: unique number for each camera
+        - mac: mac address
+        - module: the module (1-4) to which the camera belonged
+        - location: the grid location where the camera was installed
+        - start: the first day when the camera data was valid
+        - end: the last day when the camera data was valid
+    - configs: table of system config changes
+        - config_id: unique number for each config file
+        - camera_id: corresponding camera id (see above)
+        - timestamp: datetime when the config was changed
+        - path: file path where the config file is located (relative, starts with Module[1-4]
+    - detections: table of detection event files
+        - detection_id: unique number for each detection event file
+        - camera_id: corresponding camera id
+        - timestamp: datetime when event occurred
+        - path: relative path to event file
+    - stills: table of timelapse/still image files
+        - still_id: unique number for each image
+        - camera_id: corresponding camera id
+        - timestamp: datetime when image was taken
+        - path: relative path to image
+    - videos: table of video files
+        - video_id: unique number for each video
+        - camera_id: corresponding camera id
+        - timestamp: datetime when the video was recorded
+        - path: relative path to video
 
 and some tables added to store annotations:
-    - bbox_labels:
-        - bbox_label_id:
-        - name:
-    - bboxes:
-        - bbox_id:
-        - still_id:
-        - label_id:
-        - left:
-        - right:
-        - top:
-        - bottom:
-    - label_names:
-        - label_id:
-        - name:
-    - labels:
-        - annotation_id:
-        - label_id:
-        - still_id:
-        - x:
-        - y:
-    - tag_names
-        - tag_id:
-        - name:
-    - tags:
-        - annotation_id:
-        - still_id:
-        - tag_id:
+including some that are used to encode common strings (bbox, tag and label names)
+    - bbox_labels: table with code to bbox name
+        - bbox_label_id: unique bbox name/label code
+        - name: corresponding string for the code
+    - label_names: table with code to label name
+        - label_id: unique label name code
+        - name: corresponding string for the code
+    - tag_names: table with code to tag name
+        - tag_id: unique tag name code
+        - name: corresponding string for the code
+
+and finally the annotations:
+    - bboxes: bounding box table
+        - bbox_id: unique number for each bbox
+        - still_id: corresponding still id
+        - label_id: corresponding bbox_label_id (note the name difference: see bbox_labels)
+        - left: left pixel coordinate of bounding box
+        - right: right pixel coordinate
+        - top: top pixel coordinate
+        - bottom: bottom pixel coordinate
+    - labels: label (annotations for single points) table
+        - annotation_id: unique number for each label
+        - label_id: corresponding label_id (see label_names) 
+        - still_id: corresponding still id
+        - x: label x pixel coordinate
+        - y: label y pixel coordinate
+    - tags: tag (annotations for an entire image) table
+        - annotation_id: unique number for each tag
+        - tag_id: corresponding tag_id (see tag_names)
+        - still_id: corresponding still id
 """
 
 import datetime
