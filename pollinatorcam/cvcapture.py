@@ -15,7 +15,10 @@ class CVCaptureThread(threading.Thread):
         kwargs['daemon'] = kwargs.get('daemon', True)
         super(CVCaptureThread, self).__init__(*args, **kwargs)
 
-        self.url = self.cam.rtsp_url(channel=1, subtype=1)
+        if hasattr(self.cam, 'rtsp_url'):
+            self.url = self.cam.rtsp_url(channel=1, subtype=1)
+        else:
+            self.url = self.cam
         self._start_cap()
 
         self.error = None

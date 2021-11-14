@@ -56,21 +56,28 @@ data_dir = '/mnt/data/'
 
 class Grabber:
     def __init__(
-            self, ip, name=None, retry=False,
+            self, loc, name=None, retry=False,
             fake_detection=False, save_all_detections=True,
             in_systemd=False):
-        self.cam = dahuacam.DahuaCamera(ip)
-        # TODO do this every startup?
-        self.cam.set_current_time()
-        if name is None:
-            name = self.cam.get_name()
-        self.ip = ip
+        # TODO check if loc is an ip, if so, assume dahua camera
+        if '.' in loc:  # TODO use more robust ip detection
+            self.cam = dahuacam.DahuaCamera(loc)
+            # TODO do this every startup?
+            self.cam.set_current_time()
+            if name is None:
+                name = self.cam.get_name()
+        else:
+            # assume usb camera as /dev/videoX
+            # TODO use v4l2-ctl to get camera information (like bus location?)
+            if name is None:
+                name = str(loc)
+            self.cam = loc
+        self.loc = loc
 
         # TODO configure camera: see dahuacam for needed updates
         #dahuacam.initial_configuration(self.cam, reboot=False)
 
-        logging.info("Starting capture thread: %s", self.ip)
-        self.ip = ip
+        logging.info("Starting capture thread: %s", self.loc)
         self.retry = retry
         self.fake_detection = fake_detection
         if self.fake_detection:
@@ -147,8 +154,13 @@ class Grabber:
             logging.debug("existing trigger found, deleting")
             del self.trigger
         logging.debug("Building trigger")
+        # TODO how to handle video recording?
+        if hasattr(self.cam, 'rtsp_url'):
+            url = self.cam.rtsp_url(channel=1, subtype=0)
+        else:
+            url = self.cam
         self.trigger = trigger.TriggeredRecording(
-            self.cam.rtsp_url(channel=1, subtype=0),
+            url,
             self.vdir, self.name,
             **self.cfg['recording'])
 
@@ -362,8 +374,8 @@ def cmdline_run():
         '-f', '--fake', default=False, action='store_true',
         help='fake client detection')
     parser.add_argument(
-        '-i', '--ip', type=str, required=True,
-        help='camera ip address')
+        '-l', '--loc', type=str, required=True,
+        help='camera locator (ip address or /dev/videoX)')
     parser.add_argument(
         '-n', '--name', default=None,
         help='camera name')
@@ -390,7 +402,7 @@ def cmdline_run():
         os.environ['PCAM_USER'] = args.user
 
     g = Grabber(
-        args.ip, args.name, args.retry,
+        args.loc, args.name, args.retry,
         fake_detection=args.fake, save_all_detections=args.save_all_detections,
         in_systemd=args.in_systemd)
     g.run()
