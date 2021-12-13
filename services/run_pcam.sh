@@ -1,9 +1,9 @@
 #!/bin/bash
 
-source /home/pi/.bashrc
-source /home/pi/.virtualenvs/pollinatorcam/bin/activate
+source $HOME/.bashrc
+source $HOME/.virtualenvs/pollinatorcam/bin/activate
 
-cd /home/pi/r/cbs-ntcore/pollinatorcam
+cd $HOME/r/cbs-ntcore/pollinatorcam
 
 # exec here to use same PID to allow systemd watchdog
 exec python3 -m pollinatorcam -l $1 -rdD
