@@ -33,6 +33,7 @@ import os
 import numpy
 
 from . import gstrecorder
+from . import cvrecorder
 
 
 N_CLASSES = 2988
@@ -312,36 +313,21 @@ class TriggeredRecording(Trigger):
             duty_cycle=0.1, post_time=1.0, min_time=3.0, max_time=10.0):
         self.directory = directory
         self.name = name
-        #self.filename_gen = filename_gen
         super(TriggeredRecording, self).__init__(
             duty_cycle, post_time, min_time, max_time)
 
-        #self.ip = ip
+        self.filename = None
+
         self.url = url
         # TODO pre record time
         self.index = -1
-        #self.recorder_index = -1
-        #self.recorder = None
-        #self.next_recorder()
-        self.recorder = gstrecorder.Recorder(url=self.url)
-        self.recorder.start()
+        self.build_recorder()
+        #self.recorder = gstrecorder.Recorder(url=self.url)
+        #self.recorder.start()
 
-        self.filename = None
-
-    #def next_recorder(self):
-    #    if self.recorder is not None:
-    #        print("~~~ Stop recording ~~~")
-    #        t = time.monotonic()
-    #        print(
-    #            "Recorded %s second long video" %
-    #            (t - self.recorder.start_time))
-    #        self.recorder.stop_recording()
-    #    self.recorder_index += 1
-    #    fn = self.filename_gen(self.recorder_index)
-    #    logging.info("Buffering to %s", fn)
-    #    print("~~~ Buffering to %s ~~~" % fn)
-    #    self.recorder = gstrecorder.Recorder(ip=self.ip, filename=fn)
-    #    self.recorder.start()
+    def build_recorder(self):
+        #self.recorder = something
+        raise NotImplementedError("Abstract base class")
 
     def video_filename(self, meta):
         if 'datetime' in meta:
@@ -376,26 +362,34 @@ class TriggeredRecording(Trigger):
         self.recorder.start_saving(vfn)
         self.filename = vfn
 
-        # save meta (and last_meta) data here
-        #mfn = os.path.splitext(vfn)[0] + '.json'
-        #with open(mfn, 'w') as f:
-        #    json.dump(
-        #        {'meta': self.meta, 'last_meta': self.last_meta},
-        #        f, indent=True, cls=MetaEncoder)
-
-        #if self.recorder.recording:
-        #    self.next_recorder()
-        ## TODO log filename, time
-        #self.recorder.start_recording()
-
     def deactivate(self, t):
         super(TriggeredRecording, self).deactivate(t)
-        #print("~~~ Deactivate ~~~")
-        #self.next_recorder()
         if self.recorder.filename is not None:
             print("~~~ Stop recording ~~~")
             self.recorder.stop_saving()
             self.filename = None
+
+    def new_image(self, im):
+        # allow object to optionally buffer images
+        pass
+
+
+class GSTTriggeredRecording(TriggeredRecording):
+    def build_recorder(self):
+        # need to tell recorder pre/post/etc
+        logging.debug("Building GST recorder")
+        self.recorder = gstrecorder.GSTRecorder(url=self.url)
+        self.recorder.start()
+
+
+class CVTriggeredRecording(TriggeredRecording):
+    def build_recorder(self):
+        logging.debug("Building CV recorder")
+        self.recorder = cvrecorder.CVRecorder(url=self.url)
+        self.recorder.start()
+
+    def new_image(self, im):
+        self.recorder.new_image(im)
 
 
 def test():

@@ -28,6 +28,7 @@ from . import dahuacam
 from . import logger
 from . import trigger
 
+logging.basicConfig(level=logging.DEBUG)
 
 # cfg data:
 # - rois: [(left, top, size),...] if None, auto-compute 1
@@ -48,6 +49,18 @@ default_cfg = {
         'post_time': 5.0,
         'min_time': 10.0,
         'max_time': 20.0,
+    },
+    'properties': {
+        'fourcc': cv2.VideoWriter_fourcc(*'MJPG'),
+        'fps': 30,
+
+        #'autofocus': 0,
+        #'focus': 356,
+        #'frame_width': 2592,
+        #'frame_height': 1944,
+
+        'frame_width': 640,
+        'frame_height': 480,
     },
 }
 
@@ -82,10 +95,12 @@ class Grabber:
         self.fake_detection = fake_detection
         if self.fake_detection:
             self.last_detection = time.monotonic() - 5.0
-        self.start_capture_thread()
         self.crop = None
 
-        self.name = name
+        if '/' in name:
+            self.name = name.split('/')[-1]
+        else:
+            self.name = name
         logging.info("Connecting to tfliteserve as %s", self.name)
         self.client = tfliteserve.Client(self.name)
         # this updates the global mapping between class and index
@@ -112,14 +127,17 @@ class Grabber:
                 os.path.join(data_dir, 'rawdetections', self.name))
 
         self.in_systemd = in_systemd
-        if self.in_systemd:
-            systemd.daemon.notify(systemd.daemon.Notification.READY)
-            self.reset_watchdog()
+        # TODO re-enable systemd
+        #if self.in_systemd:
+        #    systemd.daemon.notify(systemd.daemon.Notification.READY)
+        #    self.reset_watchdog()
         logging.info("Process in systemd? %s", self.in_systemd)
 
         self.cfg = default_cfg
         self.cfg_mtime = None
         self.reload_config(force=True)
+
+        self.start_capture_thread()
 
         self.build_trigger()
 
@@ -143,6 +161,9 @@ class Grabber:
             self.crop = None
         if self.cfg['recording'] != old_cfg['recording']:
             self.build_trigger()
+        if self.cfg.get('properties', {}) != old_cfg.get('properties', {}):
+            if hasattr(self, 'capture_thread'):
+                self.set_properties(self.cfg.get('properties', {}))
         # re-save in 'log' directory
         dt = datetime.datetime.now()
         fn = os.path.join(self.cdir, dt.strftime('%y%m%d_%H%M%S_%f'))
@@ -157,16 +178,22 @@ class Grabber:
         # TODO how to handle video recording?
         if hasattr(self.cam, 'rtsp_url'):
             url = self.cam.rtsp_url(channel=1, subtype=0)
+            self.trigger = trigger.GSTTriggeredRecording(
+                url,
+                self.vdir, self.name,
+                **self.cfg['recording'])
         else:
             url = self.cam
-        self.trigger = trigger.TriggeredRecording(
-            url,
-            self.vdir, self.name,
-            **self.cfg['recording'])
+            self.trigger = trigger.CVTriggeredRecording(
+                url,
+                self.vdir, self.name,
+                **self.cfg['recording'])
 
     def start_capture_thread(self):
+        if hasattr(self, 'capture_thread'):
+            self.capture_thread.stop()
         self.capture_thread = cvcapture.CVCaptureThread(
-            cam=self.cam, retry=self.retry)
+            cam=self.cam, retry=self.retry, properties=self.cfg.get('properties', {}))
         self.analyze_every_n = 10
         #self.capture_thread = gstcapture.GstCaptureThread(
         #    url=self.cam.rtsp_url(channel=1, subtype=1))
@@ -174,7 +201,8 @@ class Grabber:
         self.capture_thread.start()
 
     def __del__(self):
-        self.capture_thread.stop()
+        if hasattr(self, 'capture_thread'):
+            self.capture_thread.stop()
 
     def build_crop(self, example_image):
         _, th, tw, _ = self.client.buffers.meta['input']['shape']
@@ -311,7 +339,8 @@ class Grabber:
     def reset_watchdog(self):
         if not self.in_systemd:
             return
-        systemd.daemon.notify(systemd.daemon.Notification.WATCHDOG)
+        # TODO re-enable systemd
+        #systemd.daemon.notify(systemd.daemon.Notification.WATCHDOG)
         logging.debug("Reset watchdog")
 
     def update(self):
@@ -335,9 +364,13 @@ class Grabber:
         self.reload_config()
 
         # have new image
+
         # check status of trigger
         if not self.trigger.recorder.is_alive():
             self.build_trigger()
+
+        # TODO allow trigger to buffer images
+        self.trigger.new_image(im)
 
         self.frame_count += 1
         #print("Acquired:", self.frame_count)

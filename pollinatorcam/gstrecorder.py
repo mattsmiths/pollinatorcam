@@ -25,7 +25,7 @@ from gi.repository import Gst, GLib, GObject
 
 url_string = "rtsp://{user}:{password}@{ip}:554/cam/realmonitor?channel=1&subtype=0"
 
-cmd_string = (  # TODO configure queue latency/max-size-time/etc?
+rtsp_cmd_string = (  # TODO configure queue latency/max-size-time/etc?
     'rtspsrc name=src0 location="{url}" ! '
     'capsfilter name=caps0 caps=application/x-rtp,media=video ! '
     #'queue name=queue0 max-size-bytes=0 max-size-buffers=0 leaky=2 silent=true max-size-time=2000000000 min-threshold-time=1500000000 ! '  # this is the 'delay'
@@ -34,8 +34,18 @@ cmd_string = (  # TODO configure queue latency/max-size-time/etc?
     'fakesink name=fakesink0 sync=false '
 )
 
+usb_cmd_string = (
+    'v4l2src device="{url}" ! '
+    # size/resolution selection?
+    'jpegdec ! '
+    'queue name=queue0 max-size-bytes=0 max-size-buffers=0 leaky=2 silent=true max-size-time=7000000000 min-threshold-time=5000000000 ! '  # this is the 'delay'
+    'fakesink name=fakesink0 sync=false '
+)
 
-class Recorder(threading.Thread):
+
+
+
+class GSTRecorder(threading.Thread):
     _inited = False
     def __init__(self, *args, **kwargs):
         self.url = kwargs.pop('url')
@@ -47,6 +57,10 @@ class Recorder(threading.Thread):
             Gst.init([])
             self._inited = True
 
+        if 'rtsp' in self.url:
+            cmd_string = rtsp_cmd_string
+        else:
+            cmd_string = usb_cmd_string
         self.pipeline = Gst.parse_launch(
             cmd_string.format(url=self.url))
 
