@@ -28,7 +28,6 @@ from . import dahuacam
 from . import logger
 from . import trigger
 
-logging.basicConfig(level=logging.DEBUG)
 
 # cfg data:
 # - rois: [(left, top, size),...] if None, auto-compute 1
@@ -46,7 +45,7 @@ default_cfg = {
     },
     'recording': {
         'duty_cycle': 0.1,
-        'post_time': 5.0,
+        'post_time': 2.0,
         'min_time': 10.0,
         'max_time': 20.0,
     },
@@ -54,13 +53,13 @@ default_cfg = {
         'fourcc': cv2.VideoWriter_fourcc(*'MJPG'),
         'fps': 30,
 
-        #'autofocus': 0,
-        #'focus': 356,
-        #'frame_width': 2592,
-        #'frame_height': 1944,
+        'autofocus': 0,
+        'focus': 356,
+        'frame_width': 2592,
+        'frame_height': 1944,
 
-        'frame_width': 640,
-        'frame_height': 480,
+        #'frame_width': 640,
+        #'frame_height': 480,
     },
 }
 
@@ -72,10 +71,9 @@ class Grabber:
             self, loc, name=None, retry=False,
             fake_detection=False, save_all_detections=True,
             in_systemd=False):
-        # TODO check if loc is an ip, if so, assume dahua camera
+        # check if loc is an ip, if so, assume dahua camera
         if '.' in loc:  # TODO use more robust ip detection
             self.cam = dahuacam.DahuaCamera(loc)
-            # TODO do this every startup?
             self.cam.set_current_time()
             if name is None:
                 name = self.cam.get_name()
@@ -87,13 +85,11 @@ class Grabber:
             self.cam = loc
         self.loc = loc
 
-        # TODO configure camera: see dahuacam for needed updates
-        #dahuacam.initial_configuration(self.cam, reboot=False)
-
         logging.info("Starting capture thread: %s", self.loc)
         self.retry = retry
         self.fake_detection = fake_detection
         if self.fake_detection:
+            logging.info("Faking detection every N seconds")
             self.last_detection = time.monotonic() - 5.0
         self.crop = None
 
@@ -175,7 +171,7 @@ class Grabber:
             logging.debug("existing trigger found, deleting")
             del self.trigger
         logging.debug("Building trigger")
-        # TODO how to handle video recording?
+        # how to handle video recording?
         if hasattr(self.cam, 'rtsp_url'):
             url = self.cam.rtsp_url(channel=1, subtype=0)
             self.trigger = trigger.GSTTriggeredRecording(
@@ -278,7 +274,8 @@ class Grabber:
             #print(im.mean())
             #t = im.mean() < 100
             if time.monotonic() - self.last_detection > 5.0:
-                set_trigger = True
+                set_trigger = not self.trigger.active
+                logging.info("Faking detection, flipping trigger to %s" % set_trigger)
                 self.last_detection = time.monotonic()
         else:
             set_trigger = False
@@ -367,6 +364,7 @@ class Grabber:
 
         # check status of trigger
         if not self.trigger.recorder.is_alive():
+            logging.info("Building trigger, recorder thread was stopped")
             self.build_trigger()
 
         # TODO allow trigger to buffer images

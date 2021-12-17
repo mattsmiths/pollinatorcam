@@ -39,6 +39,7 @@ class CVCaptureThread(threading.Thread):
             self.set_properties(properties)
 
     def set_properties(self, properties, retries=5):
+        # TODO need to set height first before width?
         for name in properties:
             value = properties[name]
             if isinstance(name, str):
@@ -51,11 +52,17 @@ class CVCaptureThread(threading.Thread):
                     value = cv2.VideoWriter_fourcc(*value)
             attr = getattr(cv2, name)
             n = retries
+            logging.debug("attempting set of %s to %s" % (name, value))
             while self.cap.get(attr) != value and n:
                 self.cap.set(attr, value)
+                time.sleep(0.1)
+                n -= 1
             if n == 0:
-                raise RuntimeError("Failed to set video property %s to %s" % (name, value))
-            print("set %s to %s" % (name, value))
+                current_value = self.cap.get(attr)
+            #    raise RuntimeError("Failed to set video property %s[%s] to %s" % (name, current_value, value))
+                print("Failed to set video property %s[%s] to %s" % (name, current_value, value))
+            logging.info("set %s to %s" % (name, value))
+        logging.debug("set_properties finished")
 
     def _read_frame(self):
         r, im = self.cap.read()
