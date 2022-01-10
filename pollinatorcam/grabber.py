@@ -53,10 +53,22 @@ default_cfg = {
         'fourcc': cv2.VideoWriter_fourcc(*'MJPG'),
         'fps': 30,
 
-        'autofocus': 0,
-        'focus': 356,
+        #'fourcc': cv2.VideoWriter_fourcc(*'YUYV'),
+        #'fps': 20,  # for 480
+        #'fps': 5,  # for 1080, 720
+        #'fps': 3,  # for 1944
+
         'frame_width': 2592,
         'frame_height': 1944,
+        #'frame_width': 1920,
+        #'frame_height': 1080,
+        #'frame_width': 1280,
+        #'frame_height': 720,
+        #'frame_width': 640,
+        #'frame_height': 480,
+
+        'autofocus': 0,
+        'focus': 356,
 
         #'frame_width': 640,
         #'frame_height': 480,
@@ -114,7 +126,7 @@ class Grabber:
         if not os.path.exists(self.cdir):
             os.makedirs(self.cdir)
 
-        self.analyze_every_n = 10
+        #self.analyze_every_n = 30
         self.frame_count = -1
 
         self.save_all_detections = save_all_detections
@@ -190,7 +202,9 @@ class Grabber:
             self.capture_thread.stop()
         self.capture_thread = cvcapture.CVCaptureThread(
             cam=self.cam, retry=self.retry, properties=self.cfg.get('properties', {}))
-        self.analyze_every_n = 10
+        #self.analyze_every_n = 10
+        self.analyze_every_n = self.cfg.get('properties', {}).get('fps', 10)
+        #self.analyze_every_n = 1
         #self.capture_thread = gstcapture.GstCaptureThread(
         #    url=self.cam.rtsp_url(channel=1, subtype=1))
         #self.analyze_every_n = 1
@@ -347,11 +361,11 @@ class Grabber:
         except RuntimeError as e:
             # next image timed out
             if not self.capture_thread.is_alive():
-                logging.info("Restarting capture thread")
+                logging.info("Restarting capture thread: %s", e)
                 self.start_capture_thread()
                 # TODO restart record also?
             else:
-                logging.info("Frame grab timed out, waiting...")
+                logging.info("Frame grab timed out, waiting...[%s]" % e)
             return
         if not r or im is None:  # error
             #raise Exception("Snapshot error: %s" % im)
@@ -380,6 +394,11 @@ class Grabber:
         # if frame should be checked...
         if self.frame_count % self.analyze_every_n == 0:
             # TODO need to catch errors, etc
+            t = time.monotonic()
+            if hasattr(self, 'last_analysis_time'):
+                dt = t - self.last_analysis_time
+                print("Analysis delay: %.4f" % dt)
+            self.last_analysis_time = t
             self.analyze_frame(im)
 
         # reset watchdog

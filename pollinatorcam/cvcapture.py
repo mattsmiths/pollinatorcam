@@ -29,17 +29,21 @@ class CVCaptureThread(threading.Thread):
         self.image = None
         self.image_ready = threading.Condition() 
 
+        self.every_n = 0
+
     def _start_cap(self, properties=None):
         if hasattr(self, 'cap'):
             del self.cap
         self.cap = cv2.VideoCapture(self.url)
+        #self.cap = cv2.VideoCapture(0)
+        #logging.info("Cap started with backend: %s", self.cap.getBackendName())
 
         # TODO settings should be dynamic to allow focus adjustment
         if properties is not None:
             self.set_properties(properties)
 
     def set_properties(self, properties, retries=5):
-        # TODO need to set height first before width?
+        # TODO need to set height first before width? fourcc before height? all before fps
         for name in properties:
             value = properties[name]
             if isinstance(name, str):
@@ -65,7 +69,14 @@ class CVCaptureThread(threading.Thread):
         logging.debug("set_properties finished")
 
     def _read_frame(self):
+        # TODO throw out all but the nth frame
+        if self.every_n > 0:
+            self.cap.grab()
+            self.every_n -= 1
+            return
         r, im = self.cap.read()
+        self.every_n = 3
+        #r, im = self.cap.read()
         # convert to rgb
         if not r or im is None:
             raise Exception("Failed to capture: %s, %s" % (r, im))
@@ -89,7 +100,7 @@ class CVCaptureThread(threading.Thread):
                     self.image_ready.notify()
                 if not self.retry:
                     break
-                logging.info("Restarting capture: %s", self.url)
+                logging.info("Restarting capture: %s[%s]", self.url, e)
                 self._start_cap()
 
     def next_image(self, timeout=None):
