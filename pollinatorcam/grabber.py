@@ -126,6 +126,10 @@ class Grabber:
         if not os.path.exists(self.cdir):
             os.makedirs(self.cdir)
 
+        # analyze frames only every N seconds
+        self.analysis_period = 1.0
+        self.last_analysis_time = time.monotonic() - self.analysis_period
+
         #self.analyze_every_n = 30
         self.frame_count = -1
 
@@ -201,9 +205,10 @@ class Grabber:
         if hasattr(self, 'capture_thread'):
             self.capture_thread.stop()
         self.capture_thread = cvcapture.CVCaptureThread(
-            cam=self.cam, retry=self.retry, properties=self.cfg.get('properties', {}))
+            cam=self.cam, retry=self.retry, properties=self.cfg.get('properties', {}),
+            capture_period=self.analysis_period)
         #self.analyze_every_n = 10
-        self.analyze_every_n = self.cfg.get('properties', {}).get('fps', 10)
+        #self.analyze_every_n = self.cfg.get('properties', {}).get('fps', 10)
         #self.analyze_every_n = 1
         #self.capture_thread = gstcapture.GstCaptureThread(
         #    url=self.cam.rtsp_url(channel=1, subtype=1))
@@ -391,15 +396,20 @@ class Grabber:
         if self.crop is None:
             self.crop = self.build_crop(im)
 
-        # if frame should be checked...
-        if self.frame_count % self.analyze_every_n == 0:
-            # TODO need to catch errors, etc
-            t = time.monotonic()
-            if hasattr(self, 'last_analysis_time'):
-                dt = t - self.last_analysis_time
-                print("Analysis delay: %.4f" % dt)
-            self.last_analysis_time = t
-            self.analyze_frame(im)
+        # analyze frame
+        t = time.monotonic()
+        self.analyze_frame(im)
+        print("Analysis delay: %.4f" % (t - self.last_analysis_time))
+        self.last_analysis_time = t
+
+        #if self.frame_count % self.analyze_every_n == 0:
+        #    # TODO need to catch errors, etc
+        #    t = time.monotonic()
+        #    if hasattr(self, 'last_analysis_time'):
+        #        dt = t - self.last_analysis_time
+        #        print("Analysis delay: %.4f" % dt)
+        #    self.last_analysis_time = t
+        #    self.analyze_frame(im)
 
         # reset watchdog
         self.reset_watchdog()

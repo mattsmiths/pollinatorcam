@@ -14,6 +14,11 @@ class CVCaptureThread(threading.Thread):
             self.retry = False
         kwargs['daemon'] = kwargs.get('daemon', True)
         properties = kwargs.pop('properties', {})
+
+        # limit capture rate to at most N seconds
+        self.capture_period = kwargs.pop('capture_period', 0)
+        self.last_capture_time = time.monotonic() - self.capture_period
+
         super(CVCaptureThread, self).__init__(*args, **kwargs)
 
         if hasattr(self.cam, 'rtsp_url'):
@@ -29,7 +34,6 @@ class CVCaptureThread(threading.Thread):
         self.image = None
         self.image_ready = threading.Condition() 
 
-        self.every_n = 0
 
     def _start_cap(self, properties=None):
         if hasattr(self, 'cap'):
@@ -69,13 +73,13 @@ class CVCaptureThread(threading.Thread):
         logging.debug("set_properties finished")
 
     def _read_frame(self):
-        # TODO throw out all but the nth frame
-        if self.every_n > 0:
+        t = time.monotonic()
+        if (t - self.last_capture_time) < self.capture_period:
+            # grab (and throw out) frame
             self.cap.grab()
-            self.every_n -= 1
             return
         r, im = self.cap.read()
-        self.every_n = 3
+        self.last_capture_time = t
         #r, im = self.cap.read()
         # convert to rgb
         if not r or im is None:
