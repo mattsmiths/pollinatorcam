@@ -47,8 +47,16 @@ class CVCaptureThread(threading.Thread):
             self.set_properties(properties)
 
     def set_properties(self, properties, retries=5):
-        # TODO need to set height first before width? fourcc before height? all before fps
-        for name in properties:
+        # reorder list of property names to have some elements first
+        pnames = list(properties.keys())
+        fi = 0
+        for k in ('fourcc', 'frame_width', 'frame_height'):
+            if k in pnames:
+                i = pnames.index(k)
+                pnames[fi], pnames[i] = pnames[i], pnames[fi]
+                fi += 1
+        set_values = {}
+        for name in pnames:
             value = properties[name]
             if isinstance(name, str):
                 if 'CAP_PROP_' not in name:
@@ -59,18 +67,27 @@ class CVCaptureThread(threading.Thread):
                 if isinstance(value, str):
                     value = cv2.VideoWriter_fourcc(*value)
             attr = getattr(cv2, name)
-            n = retries
-            logging.debug("attempting set of %s to %s" % (name, value))
-            while self.cap.get(attr) != value and n:
-                self.cap.set(attr, value)
-                time.sleep(0.1)
-                n -= 1
-            if n == 0:
-                current_value = self.cap.get(attr)
-            #    raise RuntimeError("Failed to set video property %s[%s] to %s" % (name, current_value, value))
-                print("Failed to set video property %s[%s] to %s" % (name, current_value, value))
-            logging.info("set %s to %s" % (name, value))
-        logging.debug("set_properties finished")
+            # set property
+            logging.info("attempt set %s to %s" % (name, value))
+            self.cap.set(attr, value)
+            set_values[name] = (attr, value)
+
+        # check set properties
+        retry = False
+        for name in set_values:
+            attr, target_value = set_values[name]
+            actual_value = self.cap.get(attr)
+            logging.info("actual value of %s = %s" % (name, actual_value))
+            # TODO float vs int?
+            if actual_value != target_value:
+                print("Failed to set video property %s[%s] to %s" % (name, actual_value, target_value))
+                retry = True
+        if retry:
+            if retries == 0:
+                raise Exception("Failed to set properties after retrying")
+            logging.warning("retrying property settings...")
+            return self.set_properties(properties, retries - 1)
+        logging.info("set_properties finished successfully")
 
     def _read_frame(self):
         t = time.monotonic()
