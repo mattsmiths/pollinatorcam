@@ -2,6 +2,10 @@ import re
 import subprocess
 
 
+def usb_bus_to_id(bus_string):
+    return bus_string.split('-')[-1].replace('.', '_')
+
+
 def get_device_info():
     o = subprocess.check_output(['v4l2-ctl', '--list-devices']).decode('ascii')
     # output contains names (and busses)
@@ -30,5 +34,14 @@ def get_device_info():
                 'info': l,
                 'devices': [],
                 'bus': bus,
+                'id': usb_bus_to_id(bus),
             })
     return device_info
+
+
+def find_device_info(dev_video_path):
+    info = get_device_info()
+    for i in info:
+        if dev_video_path in i['devices']:
+            return i
+    raise Exception("Failed to find info for device[%s]: %s" % (dev_video_path, info))

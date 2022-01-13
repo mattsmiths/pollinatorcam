@@ -27,6 +27,7 @@ from . import dahuacam
 #from . import gstcapture
 from . import logger
 from . import trigger
+from . import v4l2ctl
 
 
 # cfg data:
@@ -91,9 +92,11 @@ class Grabber:
                 name = self.cam.get_name()
         else:
             # assume usb camera as /dev/videoX
-            # TODO use v4l2-ctl to get camera information (like bus location?)
             if name is None:
-                name = str(loc)
+                info = v4l2ctl.find_device_info(loc)
+                logging.info("Found device info: %s", info)
+                name = info['id']
+            logging.info("locator string[%s] matched usb camera: %s", loc, name)
             self.cam = loc
         self.loc = loc
 
@@ -175,7 +178,7 @@ class Grabber:
             self.build_trigger()
         if self.cfg.get('properties', {}) != old_cfg.get('properties', {}):
             if hasattr(self, 'capture_thread'):
-                self.set_properties(self.cfg.get('properties', {}))
+                self.capture_thread.set_properties(self.cfg.get('properties', {}))
         # re-save in 'log' directory
         dt = datetime.datetime.now()
         fn = os.path.join(self.cdir, dt.strftime('%y%m%d_%H%M%S_%f'))
@@ -438,7 +441,7 @@ def cmdline_run():
         help='camera locator (ip address or /dev/videoX)')
     parser.add_argument(
         '-n', '--name', default=None,
-        help='camera name')
+        help='camera name (overrides automatic name detection)')
     parser.add_argument(
         '-p', '--password', default=None,
         help='camera password')
