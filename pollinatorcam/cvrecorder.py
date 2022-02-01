@@ -28,9 +28,11 @@ class CVRecorder(threading.Thread):
         # wait for new image (signal, pipe, etc) from new_image
         # write new_image to filename
         while True:
+            time.sleep(1)
             pass
 
     def start_saving(self, fn):
+        # TODO write in thread
         self.filename = fn
         # fn, fourcc, fps, framesize, iscolor
         self.writer = cv2.VideoWriter(
@@ -40,11 +42,13 @@ class CVRecorder(threading.Thread):
             True)
 
     def stop_saving(self):
+        # TODO write in thread
         self.filename = None
         self.writer.release()
         self.writer = None
 
     def new_image(self, im):
+        # TODO write in thread
         # TODO pre record period?
         if self.writer is not None:
             # TODO swap rgb to bgr

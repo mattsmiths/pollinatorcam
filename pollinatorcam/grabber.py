@@ -82,8 +82,8 @@ data_dir = '/mnt/data/'
 class Grabber:
     def __init__(
             self, loc, name=None, retry=False,
-            fake_detection=False, save_all_detections=True,
-            in_systemd=False):
+            fake_detection=False, in_systemd=False,
+            capture_stills=True):
         # check if loc is an ip, if so, assume dahua camera
         if '.' in loc:  # TODO use more robust ip detection
             self.cam = dahuacam.DahuaCamera(loc)
@@ -121,6 +121,10 @@ class Grabber:
         if not os.path.exists(self.vdir):
             os.makedirs(self.vdir)
 
+        self.sdir = os.path.join(data_dir, 'stills', self.name)
+        if not os.path.exists(self.sdir):
+            os.makedirs(self.sdir)
+
         self.mdir = os.path.join(data_dir, 'detections', self.name)
         if not os.path.exists(self.mdir):
             os.makedirs(self.mdir)
@@ -136,10 +140,7 @@ class Grabber:
         #self.analyze_every_n = 30
         self.frame_count = -1
 
-        self.save_all_detections = save_all_detections
-        if self.save_all_detections:
-            self.analysis_logger = logger.AnalysisResultsSaver(
-                os.path.join(data_dir, 'rawdetections', self.name))
+        self.capture_stills = capture_stills
 
         self.in_systemd = in_systemd
         # TODO re-enable systemd
@@ -195,13 +196,13 @@ class Grabber:
             url = self.cam.rtsp_url(channel=1, subtype=0)
             self.trigger = trigger.GSTTriggeredRecording(
                 url,
-                self.vdir, self.name,
+                self.vdir, self.sdir, self.name,
                 **self.cfg['recording'])
         else:
             url = self.cam
             self.trigger = trigger.CVTriggeredRecording(
                 url,
-                self.vdir, self.name,
+                self.vdir, self.sdir, self.name,
                 **self.cfg['recording'])
 
     def start_capture_thread(self):
@@ -314,6 +315,7 @@ class Grabber:
                 # run detector on classification results
                 t, info = detector(o)
                 if t:
+                    # classifier found something, set the trigger
                     set_trigger = True
 
                 detections = []
@@ -326,16 +328,12 @@ class Grabber:
                 meta['detections'].append(detections)
                 meta['indices'].append(info['indices'])
                 meta['rois'].append(coords)
-                
-                # TODO
-                #if self.save_all_detections:
-                #    self.analysis_logger.save(
-                #        dt, {'labels': numpy.squeeze(o), 'detection': t})
-
 
         if set_trigger:
             logging.debug("Triggered!")
             #print(meta['detections'][0][:5])
+            if self.capture_stills:
+                self.trigger.save_image(im)
         meta['config'] = self.cfg
         r = self.trigger(set_trigger, meta)
 
@@ -362,10 +360,17 @@ class Grabber:
         #systemd.daemon.notify(systemd.daemon.Notification.WATCHDOG)
         logging.debug("Reset watchdog")
 
+    def generate_thumbnail(self, im):
+        # save to config.thumbnail_dir
+        fn = os.path.join(config.thumbnail_dir, self.name) + '.jpg'
+        logging.debug("Saving thumbnail to %s", fn)
+        # TODO configure downsampling
+        cv2.imwrite(fn, im[::8, ::8, ::-1])
+
     def update(self):
         try:
-            # TODO wait frame period * 1.5
-            r, im, ts = self.capture_thread.next_image(timeout=1.5)
+            # wait analysis period * 1.5
+            r, im, ts = self.capture_thread.next_image(timeout=self.analysis_period * 1.5)
         except RuntimeError as e:
             # next image timed out
             if not self.capture_thread.is_alive():
@@ -389,8 +394,11 @@ class Grabber:
             logging.info("Building trigger, recorder thread was stopped")
             self.build_trigger()
 
-        # TODO allow trigger to buffer images
+        # allow trigger to buffer images
         self.trigger.new_image(im)
+
+        # TODO downsample and save image for ui to use
+        self.generate_thumbnail(im)
 
         self.frame_count += 1
         #print("Acquired:", self.frame_count)
@@ -428,8 +436,8 @@ class Grabber:
 def cmdline_run():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-d', '--save_all_detections', action='store_true',
-        help='save all detection results')
+        '-c', '--capture_stills', default=False, action='store_true',
+        help='save single images when triggered')
     parser.add_argument(
         '-D', '--in_systemd', action='store_true',
         help='running in sysd, reset watchdog')
@@ -446,8 +454,14 @@ def cmdline_run():
         '-p', '--password', default=None,
         help='camera password')
     parser.add_argument(
+        '-P', '--profile', default=False, action='store_true',
+        help='profile (requires yappi)')
+    parser.add_argument(
         '-r', '--retry', default=False, action='store_true',
         help='retry on acquisition errors')
+    parser.add_argument(
+        '-t', '--thumbnails', default=False, action='store_true',
+        help='save downsampled images as thumbnails')
     parser.add_argument(
         '-u', '--user', default=None,
         help='camera username')
@@ -464,8 +478,25 @@ def cmdline_run():
     if args.user is not None:
         os.environ['PCAM_USER'] = args.user
 
+    if args.profile:
+        import yappi
+        yappi.start()
     g = Grabber(
         args.loc, args.name, args.retry,
-        fake_detection=args.fake, save_all_detections=args.save_all_detections,
+        fake_detection=args.fake,
+        capture_stills=args.capture_stills,
         in_systemd=args.in_systemd)
-    g.run()
+    try:
+        g.run()
+    except KeyboardInterrupt:
+        pass
+
+    if args.profile:
+        yappi.stop()
+        # retrieve thread stats by their thread id (given by yappi)
+        threads = yappi.get_thread_stats()
+        for thread in threads:
+            print(
+                "Function stats for (%s) (%d)" % (thread.name, thread.id)
+            )  # it is the Thread.__class__.__name__
+            yappi.get_func_stats(ctx_id=thread.id).print_all()

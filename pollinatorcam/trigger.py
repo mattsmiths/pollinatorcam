@@ -30,6 +30,7 @@ import logging
 import time
 import os
 
+import cv2
 import numpy
 
 from . import gstrecorder
@@ -309,9 +310,10 @@ class Trigger:
 
 class TriggeredRecording(Trigger):
     def __init__(
-            self, url, directory, name,
+            self, url, video_directory, still_directory, name,
             duty_cycle=0.1, post_time=1.0, min_time=3.0, max_time=10.0):
-        self.directory = directory
+        self.video_directory = video_directory
+        self.still_directory = still_directory
         self.name = name
         super(TriggeredRecording, self).__init__(
             duty_cycle, post_time, min_time, max_time)
@@ -334,12 +336,24 @@ class TriggeredRecording(Trigger):
             dt = meta['datetime']
         else:
             dt = datetime.datetime.now()
-        d = os.path.join(self.directory, dt.strftime('%y%m%d'))
+        d = os.path.join(self.video_directory, dt.strftime('%y%m%d'))
         if not os.path.exists(d):
             os.makedirs(d)
         return os.path.join(
             d,
             '%s_%s.mp4' % (dt.strftime('%H%M%S_%f'), self.name))
+
+    def still_filename(self, meta):
+        if 'datetime' in meta:
+            dt = meta['datetime']
+        else:
+            dt = datetime.datetime.now()
+        d = os.path.join(self.still_directory, dt.strftime('%y%m%d'))
+        if not os.path.exists(d):
+            os.makedirs(d)
+        return os.path.join(
+            d,
+            '%s_%s.jpg' % (dt.strftime('%H%M%S_%f'), self.name))
 
     def activate(self, t):
         super(TriggeredRecording, self).activate(t)
@@ -372,6 +386,14 @@ class TriggeredRecording(Trigger):
     def new_image(self, im):
         # allow object to optionally buffer images
         pass
+
+    def save_image(self, im):
+        self.meta['camera_name'] = self.name
+        fn = self.still_filename(self.meta)
+        logging.info("Saving still to %s", fn)
+        # TODO save image, in thread?
+        # swap RGB->BGR
+        cv2.imwrite(fn, im[:, :, ::-1])
 
 
 class GSTTriggeredRecording(TriggeredRecording):
