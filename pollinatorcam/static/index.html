@@ -332,6 +332,7 @@
           this.selected_cfg_bg = "green";
         },
         draw_canvas() {
+          console.log({draw_canvas: this});
           this.img.onload = () => {
             width = this.canvas.width;
             height = this.canvas.height;
@@ -367,7 +368,8 @@
               this.ctx.strokeRect(5, 5, width - 5, height - 5);
             };
           };
-          this.img.src = this.snapshot_url;
+          // append random junk to prevent browser caching
+          this.img.src = this.snapshot_url + '?junk=' + Math.random();
         },
         canvas_click(evt) {
           if (!this.cfg_edit) return;
@@ -608,6 +610,7 @@
           fetch(base + '/cameras' + date_str).then((response) => {
             if (response.status !== 200) return;
             response.json().then((data) => {
+              console.log({cameras_sync: data});
               this.cameras = data;
               this.camera_index = 0;
               this.cameras[0].selected = true;
@@ -627,7 +630,10 @@
           });
         },
       },
-      created() {return this.sync()},
+      created() {
+        setInterval(this.sync, 1000);
+        return this.sync()
+      },
     });
     document.addEventListener('keydown', vm.keydown);
   </script>

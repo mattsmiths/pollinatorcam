@@ -363,9 +363,14 @@ class Grabber:
     def generate_thumbnail(self, im):
         # save to config.thumbnail_dir
         fn = os.path.join(config.thumbnail_dir, self.name) + '.jpg'
-        logging.debug("Saving thumbnail to %s", fn)
-        # TODO configure downsampling
-        cv2.imwrite(fn, im[::8, ::8, ::-1])
+        # only generate a thumbnail if there is none found
+        if not os.path.exists(fn):
+            # TODO configure downsampling
+            logging.debug("Saving thumbnail to %s", fn)
+            #cv2.imwrite(fn, im[::8, ::8, ::-1])
+            cv2.imwrite(fn, im[::1, ::1, ::-1])
+        else:
+            logging.debug("Thumbnail exists, not saving to %s", fn)
 
     def update(self):
         try:

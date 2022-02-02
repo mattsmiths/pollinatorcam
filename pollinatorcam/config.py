@@ -24,7 +24,7 @@ import shutil
 
 static_cfg_dir = os.path.expanduser('~/.pcam/')
 working_cfg_dir = '/dev/shm/pcam/'  # should be on a tmpfs
-thumbnail_dir = '/dev/shm/thumbnails/'
+thumbnail_dir = '/dev/shm/pcam_thumbnails/'
 
 
 for d in (thumbnail_dir, ):

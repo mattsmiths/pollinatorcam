@@ -18,8 +18,9 @@ Functions
 
 import datetime
 import glob
-import shutil
+import io
 import os
+import shutil
 
 import flask
 
@@ -31,6 +32,9 @@ from . import grabber
 this_dir = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
 app = flask.Flask(
     'pcam', static_folder=os.path.join(this_dir, 'static'))
+
+
+thumbnail_cache = {}
 
 
 @app.route("/", methods=["GET"])
@@ -164,17 +168,33 @@ def snapshot(name, date=None):
         # if date was today, grab most recent
         most_recent &= date.date() == datetime.datetime.now().date()
 
-    # get most recent day
-    path = os.path.join(
-        grabber.data_dir,
-        name,
-        date.strftime('%Y-%m-%d'),
-        'pic_001')
-    if most_recent:
-        fn_glob = os.path.join(path, '*.jpg')
+    # is a thumbnail available?
+    fn = os.path.join(config.thumbnail_dir, name + '.jpg')
+    if name in thumbnail_cache or os.path.exists(fn):
+        # TODO how to go back in time for stills
+        if os.path.exists(fn):
+            with open(fn, 'rb') as f:
+            # cache this to always use thumbnails
+                im = io.BytesIO(f.read())
+            thumbnail_cache[name] = im
+            # delete thumbnail to get a new one
+            os.remove(fn)
+        return flask.send_file(
+            thumbnail_cache[name],
+            max_age=0, cache_timeout=0,
+            mimetype='image/jpg')
     else:
-        fn_glob = os.path.join(path, date.strftime('%H.%M') + '*.jpg')
-    fns = sorted(glob.glob(fn_glob))
+        # get most recent day
+        path = os.path.join(
+            grabber.data_dir,
+            name,
+            date.strftime('%Y-%m-%d'),
+            'pic_001')
+        if most_recent:
+            fn_glob = os.path.join(path, '*.jpg')
+        else:
+            fn_glob = os.path.join(path, date.strftime('%H.%M') + '*.jpg')
+        fns = sorted(glob.glob(fn_glob))
     if len(fns) == 0:
         return flask.abort(404)
     return flask.send_file(fns[-1], mimetype='image/jpg')
