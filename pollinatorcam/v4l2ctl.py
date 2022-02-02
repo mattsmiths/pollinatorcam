@@ -24,7 +24,6 @@ def get_device_info():
                     "Failed to parse v4l2-ctl output, missing device name")
             device_info[-1]['devices'].append(l.strip())
         else:  # not a device line and not blank so this is the next name and bus
-            print(l)
             # parse info line into name and bus
             device_name = re.search('(.*)\(', l).groups()[0].strip()
             # get bus in form: usb-0000:01:00.0-1.4.3.4'

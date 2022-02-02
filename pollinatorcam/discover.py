@@ -29,6 +29,7 @@ import time
 
 from . import config
 from . import dahuacam
+from . import v4l2ctl
 
 
 default_cidr = '10.1.1.0/24'
@@ -227,6 +228,53 @@ def check_cameras(cidr=None):
     config.save_config(new_cfg, cfg_name)
 
 
+def check_v4l2_cameras():
+    # load old config
+    logging.debug("Loading old config from %s", cfg_name)
+    cfg = config.load_config(cfg_name, {})
+
+    # get a dictionary for each found device
+    # this includes:
+    # - name
+    # - info
+    # - devices
+    # - bus
+    # - id
+    # with id being the most critical piece (this becomes the name)
+    logging.debug("Getting v4l2 device information")
+    device_info = v4l2ctl.get_device_info()
+    logging.debug("\tv4l2 info: %s", device_info)
+
+    # construct a new config with device names as keys and dict values with
+    # - is_camera
+    # - is_configured
+    # - name
+    # - service {Active, Uptime}
+    new_cfg = {}
+    for di in device_info:
+        # TODO check if disabled in old config
+        name = di['id']
+        logging.debug("Checking %s", name)
+        # TODO better 'video' detection
+        is_camera = any(('video' in d for d in di['devices']))
+        logging.debug("\t is_camera? %s", is_camera)
+        new_cfg[name] = {
+            'name': name,
+            # TODO how do I know what's a camera?
+            'is_camera': is_camera,
+            'is_configured': True,
+            # TODO fill in with actual service info
+            'service': {'Active': True, 'Uptime': 0},
+        }
+        # TODO start service if not running
+
+    # TODO if any services were started, rescan
+
+    # save config
+    logging.debug("Saving confg to %s", cfg_name)
+    config.save_config(new_cfg, cfg_name)
+
+
 def cmdline_run():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -235,6 +283,9 @@ def cmdline_run():
     parser.add_argument(
         '-p', '--print', action='store_true',
         help="print last discover results")
+    parser.add_argument(
+        '-u', '--usb', action='store_true',
+        help="scan for usb (instead of ip) cameras")
     parser.add_argument(
         '-v', '--verbose', action='store_true',
         help="enable verbose logging")
@@ -280,7 +331,12 @@ def cmdline_run():
 
     #time running of check_cameras
     t0 = time.monotonic()
-    check_cameras(cidr)
+    if args.usb:  # search for usb/v4l2 devices instead of ip
+        logging.debug("Scanning for v4l2 devices")
+        check_v4l2_cameras()
+    else:
+        logging.debug("Scanning for ip devices")
+        check_cameras(cidr)
     t1 = time.monotonic()
     logging.debug("check_cameras took %0.4f seconds", t1 - t0)
 
