@@ -35,6 +35,7 @@ git clone https://github.com/cbs-ntcore/pollinatorcam.git
 ```bash
 sudo apt update
 sudo apt install python3-numpy python3-opencv python3-requests python3-flask python3-systemd nginx-full vsftpd virtualenvwrapper apache2-utils python3-gst-1.0 gstreamer1.0-tools nmap
+echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
 ```
 
 # Setup virtualenv
@@ -53,12 +54,16 @@ mkdir -p ~/r/braingram
 cd ~/r/braingram
 git clone https://github.com/braingram/tfliteserve.git
 cd tfliteserve
-pip3 install --no-deps https://dl.google.com/coral/python/tflite_runtime-2.1.0.post1-cp37-cp37m-linux_armv7l.whl
+
+# the following tflite runtime installation instructions are from here: https://www.tensorflow.org/lite/guide/python
+
 # install edge support
 echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | sudo tee /etc/apt/sources.list.d/coral-edgetpu.list
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 sudo apt-get update
+sudo apt install python3-tflite-runtime
 sudo apt-get install libedgetpu1-std
+
 pip3 install -e .
 # get model (TODO 404 permission denied, host this in repo or publicly)
 wget https://github.com/braingram/tfliteserve/releases/download/v0.1/200123_2035_model.tar.xz
