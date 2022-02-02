@@ -103,7 +103,7 @@ sudo mkdir /mnt/data
 sudo mount /mnt/data
 ```
 
-# Setup FTP server
+# Setup FTP server (only required for IP cameras)
 
 ```bash
 echo "
@@ -159,7 +159,7 @@ done
 sudo systemctl restart nginx
 ```
 
-# Network configuration
+# Network configuration (only required for IP cameras)
 
 The lorex box will try to act as a gateway so if you want to use a different
 interface (than eth0) for internet (like wlan0 or eth1) you will need to tell
@@ -179,7 +179,7 @@ You can run the following to see what devices were found.
 python3 -m pollinatorcam discover -p
 ```
 
-When new cameras are connected, they will need to be configured. If this is
+When new IP cameras are connected, they will need to be configured. If this is
 the first time the camera is configured, you may need to provide a different
 username and password (like the default admin/admin).
 
