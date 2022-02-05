@@ -38,9 +38,14 @@ def get_device_info():
     return device_info
 
 
-def find_device_info(dev_video_path):
+def find_device_info(locator):
     info = get_device_info()
-    for i in info:
-        if dev_video_path in i['devices']:
-            return i
-    raise Exception("Failed to find info for device[%s]: %s" % (dev_video_path, info))
+    if '/dev/video' in locator:
+        for i in info:
+            if locator in i['devices']:
+                return i
+    else:  # assume a bus path/id
+        for i in info:
+            if i['id'] == locator:
+                return i
+    raise Exception("Failed to find info for device[%s] in %s" % (locator, info))
