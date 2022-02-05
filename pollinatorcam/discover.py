@@ -251,24 +251,46 @@ def check_v4l2_cameras():
     # - name
     # - service {Active, Uptime}
     new_cfg = {}
+    rescan_services = False
+    services = status_of_all_camera_services()
     for di in device_info:
         # TODO check if disabled in old config
         name = di['id']
         logging.debug("Checking %s", name)
+
         # TODO better 'video' detection
-        is_camera = any(('video' in d for d in di['devices']))
+        is_camera = name not in ('codec', 'isp')  # ignore pi codec and isp
+        is_camera = is_camera and any(('video' in d for d in di['devices']))
         logging.debug("\t is_camera? %s", is_camera)
-        new_cfg[name] = {
+
+        cam_cfg = {
             'name': name,
-            # TODO how do I know what's a camera?
             'is_camera': is_camera,
             'is_configured': True,
-            # TODO fill in with actual service info
-            'service': {'Active': True, 'Uptime': 0},
+            # fill in with actual service info
+            'service': services.get(name, {'Active': False, 'Uptime': 0}),
         }
-        # TODO start service if not running
 
-    # TODO if any services were started, rescan
+        # start service if not running
+        if cam_cfg['is_camera'] and not cam_cfg['service']['Active']:
+            logging.debug("Starting service for %s", name)
+            try:
+                start_camera_service(name)
+                rescan_services = True
+            except Exception as e:
+                logging.warning("Failed to start camera[%s]: %s", name, e)
+
+        new_cfg[name] = cam_cfg
+
+    # if any services were started, rescan
+    if rescan_services:
+        logging.debug("Rescanning services")
+        # TODO add a small delay to allow services to start?
+        services = status_of_all_camera_services()
+        for name in services:
+            if name not in new_cfg:
+                continue
+            new_cfg[name]['service'] = services[name]
 
     # save config
     logging.debug("Saving confg to %s", cfg_name)
