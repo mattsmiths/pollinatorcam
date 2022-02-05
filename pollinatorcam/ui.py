@@ -181,7 +181,6 @@ def snapshot(name, date=None):
             os.remove(fn)
         return flask.send_file(
             thumbnail_cache[name],
-            max_age=0, cache_timeout=0,
             mimetype='image/jpg')
     else:
         # get most recent day
