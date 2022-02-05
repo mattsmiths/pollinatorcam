@@ -13,6 +13,8 @@ the following in your ~/.bashrc (or wherever else is appropriate). Note this
 must be at the TOP of your bashrc (before the 'If not running interactively'... line).
 You may have to use nano in the terminal to make these edits:
 
+TODO make a PCAM_HOME environment variable to make switching forks easier
+
 ```bash
 export PCAM_USER="camera login user name"
 export PCAM_PASSWORD="camera login password"
@@ -101,6 +103,10 @@ Mount storage location
 echo "/dev/sda1 /mnt/data auto defaults,user,uid=1000,gid=124,umask=002  0 0" | sudo tee -a /etc/fstab
 sudo mkdir /mnt/data
 sudo mount /mnt/data
+sudo mkdir -p /mnt/data/logs
+sudo chown pi /mnt/data
+sudo chgrp ftp /mnt/data
+sudo chmod 775 /mnt/data
 ```
 
 # Setup FTP server (only required for IP cameras)
@@ -114,10 +120,6 @@ local_root=/mnt/data" | sudo tee -a /etc/vsftpd.conf
 sudo adduser $PCAM_NAS_USER --gecos "" --disabled-password
 sudo adduser $PCAM_NAS_USER ftp
 echo -e "$PCAM_NAS_PASSWORD\n$PCAM_NAS_PASSWORD" | sudo passwd $PCAM_NAS_USER
-sudo mkdir -p /mnt/data/logs
-sudo chgrp ftp /mnt/data
-sudo chown pi /mnt/data
-sudo chmod 775 /mnt/data
 ```
 
 # Setup web server (for UI)
@@ -129,6 +131,8 @@ sudo ln -s ~/r/braingram/pollinatorcam/services/pcam-ui.nginx /etc/nginx/sites-e
 ```
 
 # Setup systemd services
+
+NOTE: the overview service and timer are not needed for usb cameras.
 
 ```bash
 cd ~/r/braingram/pollinatorcam/services
