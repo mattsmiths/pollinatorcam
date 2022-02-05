@@ -91,13 +91,18 @@ class Grabber:
             if name is None:
                 name = self.cam.get_name()
         else:
-            # assume usb camera as /dev/videoX
+            # assume usb camera as:
+            #  - /dev/videoX
+            #  - X_X... (based on bus position)
+            device_info = v4l2ctl.find_device_info(loc)
+            logging.info("Found device_info: %s", device_info)
             if name is None:
-                info = v4l2ctl.find_device_info(loc)
-                logging.info("Found device info: %s", info)
-                name = info['id']
-            logging.info("locator string[%s] matched usb camera: %s", loc, name)
-            self.cam = loc
+                name = device_info['id']
+            # look up bus id
+            self.cam = min(
+                [d for d in device_info['devices'] if '/dev/video' in d],
+                key=lambda s: int(s.split('/dev/video')[1]))
+            logging.info("locator string[%s] matched usb camera %s at %s", loc, name, self.cam)
         self.loc = loc
 
         logging.info("Starting capture thread: %s", self.loc)
@@ -143,10 +148,9 @@ class Grabber:
         self.capture_stills = capture_stills
 
         self.in_systemd = in_systemd
-        # TODO re-enable systemd
-        #if self.in_systemd:
-        #    systemd.daemon.notify(systemd.daemon.Notification.READY)
-        #    self.reset_watchdog()
+        if self.in_systemd:
+            systemd.daemon.notify(systemd.daemon.Notification.READY)
+            self.reset_watchdog()
         logging.info("Process in systemd? %s", self.in_systemd)
 
         self.cfg = default_cfg
@@ -356,8 +360,7 @@ class Grabber:
     def reset_watchdog(self):
         if not self.in_systemd:
             return
-        # TODO re-enable systemd
-        #systemd.daemon.notify(systemd.daemon.Notification.WATCHDOG)
+        systemd.daemon.notify(systemd.daemon.Notification.WATCHDOG)
         logging.debug("Reset watchdog")
 
     def generate_thumbnail(self, im):
@@ -415,7 +418,7 @@ class Grabber:
         # analyze frame
         t = time.monotonic()
         self.analyze_frame(im)
-        print("Analysis delay: %.4f" % (t - self.last_analysis_time))
+        logging.debug("Analysis delay: %.4f", (t - self.last_analysis_time))
         self.last_analysis_time = t
 
         #if self.frame_count % self.analyze_every_n == 0:
