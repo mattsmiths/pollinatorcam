@@ -25,9 +25,9 @@ export PCAM_NAS_PASSWORD="ftp server password"
 Prepare for and clone this repository
 ```bash
 . ~/.bashrc
-mkdir -p ~/r/cbs-ntcore
-cd ~/r/cbs-ntcore
-git clone https://github.com/cbs-ntcore/pollinatorcam.git
+mkdir -p ~/r/braingram
+cd ~/r/braingram
+git clone https://github.com/braingram/pollinatorcam.git
 ```
 
 # Install pre-requisites
@@ -73,7 +73,7 @@ tar xvJf 200123_2035_model.tar.xz
 # Install this repository
 
 ```bash
-cd ~/r/cbs-ntcore/pollinatorcam
+cd ~/r/braingram/pollinatorcam
 pip install -e .
 pip install uwsgi
 ```
@@ -125,13 +125,13 @@ sudo chmod 775 /mnt/data
 ```bash
 sudo htpasswd -bc /etc/apache2/.htpasswd pcam $PCAM_PASSWORD
 sudo rm /etc/nginx/sites-enabled/default
-sudo ln -s ~/r/cbs-ntcore/pollinatorcam/services/pcam-ui.nginx /etc/nginx/sites-enabled/
+sudo ln -s ~/r/braingram/pollinatorcam/services/pcam-ui.nginx /etc/nginx/sites-enabled/
 ```
 
 # Setup systemd services
 
 ```bash
-cd ~/r/cbs-ntcore/pollinatorcam/services
+cd ~/r/braingram/pollinatorcam/services
 for S in \
     tfliteserve.service \
     pcam-discover.service \
@@ -139,7 +139,7 @@ for S in \
     pcam-overview.timer \
     pcam@.service \
     pcam-ui.service; do \
-  sudo ln -s ~/r/cbs-ntcore/pollinatorcam/services/$S /etc/systemd/system/$S
+  sudo ln -s ~/r/braingram/pollinatorcam/services/$S /etc/systemd/system/$S
 done
 # enable services to run on boot
 for S in \
@@ -203,8 +203,8 @@ cd ~/r/braingram/pymicroclimate
 pip install -e .
 
 # setup the pymicroclimate service
-cd ~/r/cbs-ntcore/pollinatorcam/services
-sudo ln -s ~/r/cbs-ntcore/pollinatorcam/services/pymicroclimate.service /etc/systemd/system/pymicroclimate.service
+cd ~/r/braingram/pollinatorcam/services
+sudo ln -s ~/r/braingram/pollinatorcam/services/pymicroclimate.service /etc/systemd/system/pymicroclimate.service
 sudo systemctl enable pymicroclimate
 sudo systemctl start pymicroclimate
 ```
