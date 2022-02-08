@@ -139,10 +139,13 @@
             <option>detector.min_dev</option>
             <option>detector.n_std</option>
             <option>detector.threshold</option>
+            <option>recording.save_video</option>
             <option>recording.duty_cycle</option>
             <option>recording.max_time</option>
             <option>recording.min_time</option>
             <option>recording.post_time</option>
+            <option>recording.periodic_still</option>
+            <option>properties.focus</option>
           </select>
           <input
             v-model="selected_cfg_value"
@@ -191,7 +194,8 @@
           default: function () {
             return {
               detector: {allow: "", min_dev: 0, n_std: 0, threshold: 0},
-              recording: {duty_cycle: 0, max_time: 0, min_time: 0},
+              recording: {save_video: 0, duty_cycle: 0, max_time: 0, min_time: 0, periodic_still: 0},
+              properties: {focus: 0},
               rois: [],
             };
           },
@@ -314,6 +318,14 @@
             case "recording.post_time":
               minv = 0.0;
               maxv = 3600.0;
+              break;
+            case "recording.periodic_still":
+              minv = 0.0;
+              maxv = Infinity;
+              break;
+            case "properties.focus":
+              minv = 0.0;
+              maxv = 990.0;
               break;
           };
           if ((val < minv) || (val > maxv)) {
@@ -631,7 +643,8 @@
         },
       },
       created() {
-        setInterval(this.sync, 1000);
+        // TODO get image without syncing config
+        // setInterval(this.sync, 2000);
         return this.sync()
       },
     });
