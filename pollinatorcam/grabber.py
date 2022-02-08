@@ -45,10 +45,12 @@ default_cfg = {
          'allow': '+insects',
     },
     'recording': {
+        'save_video': False,
         'duty_cycle': 0.1,
         'post_time': 2.0,
         'min_time': 10.0,
         'max_time': 20.0,
+        'periodic_still': 60,  # save every N seconds
     },
     'properties': {
         'fourcc': cv2.VideoWriter_fourcc(*'MJPG'),

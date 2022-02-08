@@ -311,7 +311,8 @@ class Trigger:
 class TriggeredRecording(Trigger):
     def __init__(
             self, url, video_directory, still_directory, name,
-            duty_cycle=0.1, post_time=1.0, min_time=3.0, max_time=10.0):
+            duty_cycle=0.1, post_time=1.0, min_time=3.0, max_time=10.0,
+            save_video=True, periodic_still=False):
         self.video_directory = video_directory
         self.still_directory = still_directory
         self.name = name
@@ -320,10 +321,19 @@ class TriggeredRecording(Trigger):
 
         self.filename = None
 
+        # set save_video to false to prevent any video saving
+        self.save_video = save_video
+
+        # save a still image every N seconds (0 = don't save)
+        self.periodic_still = periodic_still
+
         self.url = url
         # TODO pre record time
         self.index = -1
-        self.build_recorder()
+
+        if self.save_video:
+            # only need a recorder if videos are saved
+            self.build_recorder()
         #self.recorder = gstrecorder.Recorder(url=self.url)
         #self.recorder.start()
 
@@ -357,6 +367,8 @@ class TriggeredRecording(Trigger):
 
     def activate(self, t):
         super(TriggeredRecording, self).activate(t)
+        if not self.save_video:
+            return
         if self.recorder.filename is not None:
             self.recorder.stop_saving()  # TODO instead switch files?
 
@@ -378,6 +390,8 @@ class TriggeredRecording(Trigger):
 
     def deactivate(self, t):
         super(TriggeredRecording, self).deactivate(t)
+        if not self.save_video:
+            return
         if self.recorder.filename is not None:
             print("~~~ Stop recording ~~~")
             self.recorder.stop_saving()
@@ -411,7 +425,17 @@ class CVTriggeredRecording(TriggeredRecording):
         self.recorder.start()
 
     def new_image(self, im):
-        self.recorder.new_image(im)
+        if hasattr(self, 'recorder'):
+            self.recorder.new_image(im)
+
+        # check if image should be saved based on timer
+        if self.periodic_still:
+            t = time.monotonic()
+            if (
+                    not hasattr(self, 'last_still_time') or
+                    t - self.last_still_time >= self.periodic_still):
+                self.save_image(im)
+                self.last_still_time = t
 
 
 def test():
