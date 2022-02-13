@@ -406,6 +406,7 @@ class TriggeredRecording(Trigger):
         # TODO save image, in thread?
         # swap RGB->BGR
         cv2.imwrite(fn, im[:, :, ::-1])
+        return fn
 
 
 class GSTTriggeredRecording(TriggeredRecording):

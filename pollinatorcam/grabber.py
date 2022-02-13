@@ -359,11 +359,13 @@ class Grabber:
                 meta['indices'].append(info['indices'])
                 meta['rois'].append(coords)
 
+        meta['still_filename'] = ''
         if set_trigger:
             logging.debug("Triggered!")
             #print(meta['detections'][0][:5])
             if self.capture_stills:
-                self.trigger.save_image(im)
+                fn = self.trigger.save_image(im)
+                meta['still_filename'] = fn
         meta['config'] = self.cfg
         r = self.trigger(set_trigger, meta)
 
