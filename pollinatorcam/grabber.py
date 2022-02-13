@@ -400,7 +400,7 @@ class Grabber:
         # have new image
 
         # check status of trigger
-        if not self.trigger.recorder.is_alive():
+        if hasattr(self.trigger, 'recorder') and not self.trigger.recorder.is_alive():
             logging.info("Building trigger, recorder thread was stopped")
             self.build_trigger()
 
