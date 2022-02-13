@@ -42,7 +42,8 @@ default_cfg = {
         'n_std': 3.0,
         'min_dev': 0.1,
         'threshold': 0.6,
-         'allow': '+insects',
+         #'allow': '+insects',
+         'allow': '',
     },
     'recording': {
         'save_video': False,
@@ -121,6 +122,7 @@ class Grabber:
             self.name = name
         logging.info("Connecting to tfliteserve as %s", self.name)
         self.client = tfliteserve.Client(self.name)
+        self.n_classes = len(self.client.buffers.meta['labels'])
         # this updates the global mapping between class and index
         trigger.set_mask_labels(self.client.buffers.meta['labels'])
 
@@ -276,7 +278,7 @@ class Grabber:
             rois.append((
                 coord,
                 (slice(t, b), slice(l, r)),
-                trigger.RunningThreshold(**self.cfg['detector']),
+                trigger.RunningThreshold(self.n_classes, **self.cfg['detector']),
             ))
 
         def cf(image):
@@ -309,6 +311,7 @@ class Grabber:
         else:
             set_trigger = False
             meta['detections'] = []
+            meta['bboxes'] = []
             meta['indices'] = []
             meta['rois'] = []
             for patch in self.crop(im):
@@ -316,6 +319,25 @@ class Grabber:
 
                 # run classification on cropped image
                 o = self.client.run(cim)
+                bboxes = {}
+                if self.client.buffers.meta.get('type', 'classifier') == 'detector':
+                    # output is from a detection network
+                    # remap scores to output similar to classifier output
+                    # so something like a 1 x n_classes vector
+                    detector_output = o
+                    o = numpy.zeros((1, self.n_classes))
+                    for r in detector_output:
+                        label_id = int(r[0])
+                        score = r[1]
+                        if label_id >= self.n_classes:
+                            print(
+                                "Invliad label_id[%s] > number of classes[%s]" %
+                                (label_id, self.n_classes))
+                            continue
+                        o[0, label_id] = max(o[0, label_id], score)
+                        if label_id not in bboxes:
+                            bboxes[label_id] = []
+                        bboxes[label_id].append((label_id, score, r[2:]))
                 #o[0, 100] = 1.0
 
                 # run detector on classification results
@@ -327,10 +349,12 @@ class Grabber:
                 detections = []
                 if len(info['indices']):
                     lbls = self.client.buffers.meta['labels']
+                    sorted_indices = sorted(
+                        info['indices'], key=lambda i: o[0, i], reverse=True)
                     detections = [
                         (str(lbls[i]), o[0, i]) for i in
-                        sorted(
-                            info['indices'], key=lambda i: o[0, i], reverse=True)]
+                        sorted_indices]
+                    meta['bboxes'].append([bboxes.get(i, []) for i in sorted_indices])
                 meta['detections'].append(detections)
                 meta['indices'].append(info['indices'])
                 meta['rois'].append(coords)

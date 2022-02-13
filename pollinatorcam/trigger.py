@@ -37,14 +37,10 @@ from . import gstrecorder
 from . import cvrecorder
 
 
-N_CLASSES = 2988
 mask_consts = {
-    #'insects': [(True, ('slice', 75, 1067)), (True, 2291)],
-    #'birds': [(True, ('slice', 1103, 1589)), ],
-    #'mammals': [(True, ('slice', 1589, 1638)), ],
-    'insects': [('slice', 75, 1067), 2291],
-    'birds': [('slice', 1103, 1589), ],
-    'mammals': [('slice', 1589, 1638), ],
+#    'insects': [('slice', 75, 1067), 2291],
+#    'birds': [('slice', 1103, 1589), ],
+#    'mammals': [('slice', 1589, 1638), ],
 }
 
 
@@ -96,15 +92,15 @@ def update_mask(mask, valence, operation):
     return mask
 
 
-def make_allow_mask(*ops):
+def make_allow_mask(n_classes, *ops):
     """
     ops are: (True/False, operation) (see update_mask)
     """
     # if first op is deny (or missing) allow all
     if (len(ops) == 0) or (not ops[0][0]):
-        mask = numpy.ones(N_CLASSES, dtype=bool)
+        mask = numpy.ones(n_classes, dtype=bool)
     else:  # else (first op is allow) start by denying all
-        mask = numpy.zeros(N_CLASSES, dtype=bool)
+        mask = numpy.zeros(n_classes, dtype=bool)
     for op in ops:
         mask = update_mask(mask, *op)
     logging.debug("Made allow mask: %s", mask)
@@ -155,15 +151,17 @@ def parse_allow_mask(allow_string, check_consts=True):
 
 
 class RunningThreshold:
-    def __init__(self, min_n=10, n_std=3.0, min_dev=0.1, threshold=0.9, allow=None):
+    def __init__(
+            self, n_classes,
+            min_n=10, n_std=3.0, min_dev=0.1, threshold=0.9, allow=None):
         self.min_n = min_n
         self.n_std = n_std
         self.min_dev = min_dev
         self.static_threshold = threshold
         if isinstance(allow, (list, tuple)):
-            allow = make_allow_mask(*allow)
+            allow = make_allow_mask(n_classes, *allow)
         elif isinstance(allow, str):
-            allow = make_allow_mask(*parse_allow_mask(allow))
+            allow = make_allow_mask(n_classes, *parse_allow_mask(allow))
         self.allow = allow
 
         self.buffers = None
