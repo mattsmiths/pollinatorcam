@@ -108,7 +108,11 @@ sudo chown pi /mnt/data
 sudo chgrp ftp /mnt/data
 sudo chmod 775 /mnt/data
 ```
+# Check camera acquisition parameters
 
+```bash
+v4l2-ctl -l
+```
 # Setup FTP server (only required for IP cameras)
 
 ```bash
@@ -163,16 +167,6 @@ done
 sudo systemctl restart nginx
 ```
 
-# Network configuration (only required for IP cameras)
-
-The lorex box will try to act as a gateway so if you want to use a different
-interface (than eth0) for internet (like wlan0 or eth1) you will need to tell
-the pi to not use eth0 as a gateway by adding the following to /etc/dhcpcd.conf
-
-```
-interface eth0
-nogateway
-```
 
 # Configure cameras
 
@@ -192,23 +186,3 @@ username and password (like the default admin/admin).
 python3 -m pollinatorcam configure -i 10.1.1.153 -u admin -p admin
 ```
 
-# (optional) Setup pymicroclimate weather logging
-
-Install and setup the [pymicroclimate](https://github.com/braingram/pymicroclimate) code.
-
-```bash
-# clone the repository
-cd ~/r/braingram
-git clone https://github.com/braingram/pymicroclimate.git
-
-# install pymicroclimate into the pollinatorcam virtualenv
-# if not already active, activate the virtualenv: workon pollinatorcam
-cd ~/r/braingram/pymicroclimate
-pip install -e .
-
-# setup the pymicroclimate service
-cd ~/r/braingram/pollinatorcam/services
-sudo ln -s ~/r/braingram/pollinatorcam/services/pymicroclimate.service /etc/systemd/system/pymicroclimate.service
-sudo systemctl enable pymicroclimate
-sudo systemctl start pymicroclimate
-```
