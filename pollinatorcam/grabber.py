@@ -72,6 +72,8 @@ default_cfg = {
         #'frame_height': 480,
 
         'autofocus': 1,
+        'auto_exposure':1,
+        'exposure':166 #value from 1-10000
         #'focus': 356,
 
         #'frame_width': 640,
