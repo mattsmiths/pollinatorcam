@@ -29,7 +29,7 @@ Prepare for and clone this repository
 . ~/.bashrc
 mkdir -p ~/r/braingram
 cd ~/r/braingram
-git clone https://github.com/braingram/pollinatorcam.git
+git clone https://github.com/mattsmiths/pollinatorcam.git -b buzz
 ```
 
 # Install pre-requisites
@@ -112,6 +112,9 @@ sudo chmod 775 /mnt/data
 
 ```bash
 v4l2-ctl -l
+```
+```bash
+v4l2-ctl -d 0 -c exposure_auto=1 -c exposure_absolute=133 #example of editing acquisition from command line, disable auto-exposure
 ```
 # Setup FTP server (only required for IP cameras)
 
