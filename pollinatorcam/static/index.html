@@ -146,6 +146,9 @@
             <option>recording.post_time</option>
             <option>recording.periodic_still</option>
             <option>properties.focus</option>
+            <option>properties.exposure</option>
+            <option>properties.white_balance_temperature</option>
+            <option>properties.contrast</option>
           </select>
           <input
             v-model="selected_cfg_value"
@@ -195,7 +198,7 @@
             return {
               detector: {allow: "", min_dev: 0, n_std: 0, threshold: 0},
               recording: {save_video: 0, duty_cycle: 0, max_time: 0, min_time: 0, periodic_still: 0},
-              properties: {focus: 0},
+              properties: {focus: 0, exposure: 0, white_balance_temperature:2800, contrast:0},
               rois: [],
             };
           },
@@ -330,6 +333,18 @@
             case "properties.focus":
               minv = 0.0;
               maxv = 990.0;
+              break;
+            case "properties.exposure":
+              minv = 0.0;
+              maxv = 10000.0;
+              break;
+            case "properties.white_balance_temperature":
+              minv = 2800.0;
+              maxv = 6500.0;
+              break;
+            case "properties.contrast":
+              minv = 0.0;
+              maxv = 100.0;
               break;
           };
           if ((val < minv) || (val > maxv)) {
