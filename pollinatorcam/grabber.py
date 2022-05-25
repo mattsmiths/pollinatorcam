@@ -71,13 +71,13 @@ default_cfg = {
         #'frame_width': 640,
         #'frame_height': 480,
 
-        'autofocus': 1,
+        'autofocus': 1, #change to 0 to turn off
         #'focus': 356,
-        'auto_exposure':1,
+        'auto_exposure':1, #change to 3 for turning auto_exposure back onn
         'exposure':166 #value from 1-10000
-        'white_balance_temperature_auto':0,
-        'white_balance_temperature':4600,
-        'contrast':30
+        #'white_balance_temperature_auto':0,
+        #'white_balance_temperature':4600,
+        'contrast':30 # from 0 - 100
 
         #'frame_width': 640,
         #'frame_height': 480,
