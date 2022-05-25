@@ -72,9 +72,12 @@ default_cfg = {
         #'frame_height': 480,
 
         'autofocus': 1,
+        #'focus': 356,
         'auto_exposure':1,
         'exposure':166 #value from 1-10000
-        #'focus': 356,
+        'white_balance_temperature_auto':0,
+        'white_balance_temperature':4600,
+        'contrast':30
 
         #'frame_width': 640,
         #'frame_height': 480,
