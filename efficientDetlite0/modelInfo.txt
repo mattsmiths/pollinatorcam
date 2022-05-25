@@ -1,0 +1,19 @@
+efficientdet-lite
+320x320
+1Class - insecta
+trained on - [ apis, bombus, formiciddae, nymphalidae, musciddae, tortricidae ]
+
+
+{'AP': 0.748514,
+ 'AP50': 0.9750814,
+ 'AP75': 0.8484741,
+ 'APs': 0.1915131,
+ 'APm': 0.36358505,
+ 'APl': 0.7691464,
+ 'ARmax1': 0.76129794,
+ 'ARmax10': 0.8084062,
+ 'ARmax100': 0.81486213,
+ 'ARs': 0.36,
+ 'ARm': 0.54727274,
+ 'ARl': 0.8314194,
+ 'AP_/Insecta': 0.748514}
