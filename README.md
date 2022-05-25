@@ -79,7 +79,11 @@ cd ~/r/braingram/pollinatorcam
 pip install -e .
 pip install uwsgi
 ```
-
+# Move detection model
+```bash
+cd ~/r/braingram/pollinatorcam
+cp ~r/braingram/pollinatorcam/efficientDetlite0/ ~r/braingram/tfliteserve/singleClassDet/ -r
+```
 # Setup storage location
 
 This assumes you're using an external storage drive that shows up as /dev/sda1. One option is to setup the drive as ntfs.
