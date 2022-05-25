@@ -85,7 +85,7 @@ data_dir = '/mnt/data/'
 class Grabber:
     def __init__(
             self, loc, name=None, retry=False,
-            fake_detection=False, in_systemd=False,
+            fake_detection=True, in_systemd=False,
             capture_stills=True):
         # check if loc is an ip, if so, assume dahua camera
         if '.' in loc:  # TODO use more robust ip detection
@@ -110,7 +110,7 @@ class Grabber:
 
         logging.info("Starting capture thread: %s", self.loc)
         self.retry = retry
-        self.fake_detection = fake_detection
+        self.fake_detection = True
         if self.fake_detection:
             logging.info("Faking detection every N seconds")
             self.last_detection = time.monotonic() - 5.0
@@ -305,7 +305,7 @@ class Grabber:
             #print(im.mean())
             #t = im.mean() < 100
             if time.monotonic() - self.last_detection > 5.0:
-                set_trigger = not self.trigger.active
+                set_trigger = False
                 logging.info("Faking detection, flipping trigger to %s" % set_trigger)
                 self.last_detection = time.monotonic()
         else:
