@@ -112,18 +112,6 @@ sudo chgrp ftp /mnt/data
 sudo chmod 775 /mnt/data
 ```
 
-# Setup FTP server (only required for IP cameras)
-
-```bash
-echo "
-write_enable=YES
-local_umask=011
-local_root=/mnt/data" | sudo tee -a /etc/vsftpd.conf
-
-sudo adduser $PCAM_NAS_USER --gecos "" --disabled-password
-sudo adduser $PCAM_NAS_USER ftp
-echo -e "$PCAM_NAS_PASSWORD\n$PCAM_NAS_PASSWORD" | sudo passwd $PCAM_NAS_USER
-```
 
 # Setup web server (for UI)
 
@@ -166,15 +154,36 @@ done
 sudo systemctl restart nginx
 ```
 
-# Network configuration (only required for IP cameras)
+# Install MCC134 libraries and script
 
-The lorex box will try to act as a gateway so if you want to use a different
-interface (than eth0) for internet (like wlan0 or eth1) you will need to tell
-the pi to not use eth0 as a gateway by adding the following to /etc/dhcpcd.conf
-
+Attach the MCC134 thermocouple ontop of the Pi's 40 pin GPIO, then run commands below
+```bash
+cd ~
+git clone https://github.com/mccdaq/daqhats.git
+cd ~/daqhats
+sudo ./install.sh
 ```
-interface eth0
-nogateway
+```bash
+sudo chmod 775 /home/pi/r/braingram/pollinatorcam/tempSensor.py
+sudo mv /home/pi/r/braingram/pollinatorcam/tempSensor.py ~/daqhats/examples/python/mcc134/tempSensor.py
+```
+Open crontab and add this line
+```bash
+*/5  * * * * sudo python3 /home/pi/daqhats/examples/python/mcc134/tempSensor.py
+```
+Run sudo python /home/pi/daqhats/examples/python/mcc134/tempSensor.py
+Confirm a folder in /home/pi/ titled "tempProbes" and a csv with a temp reading is generated
+
+# Install wittyPi libraries and script
+
+Attach the wittyPi on top of the thermocouples 40 pin GPIO, then run commands below
+```bash
+wget http://www.uugear.com/repo/WittyPi3/install.sh
+sudo sh install.sh
+```
+```bash
+sudo mv /home/pi/r/braingra/pollinatorcam/schedule.wpi /home/pi/wittypi/schedule.wpi
+sudo ./wittypi/runScript.sh
 ```
 
 # Configure cameras
@@ -195,23 +204,3 @@ username and password (like the default admin/admin).
 python3 -m pollinatorcam configure -i 10.1.1.153 -u admin -p admin
 ```
 
-# (optional) Setup pymicroclimate weather logging
-
-Install and setup the [pymicroclimate](https://github.com/braingram/pymicroclimate) code.
-
-```bash
-# clone the repository
-cd ~/r/braingram
-git clone https://github.com/braingram/pymicroclimate.git
-
-# install pymicroclimate into the pollinatorcam virtualenv
-# if not already active, activate the virtualenv: workon pollinatorcam
-cd ~/r/braingram/pymicroclimate
-pip install -e .
-
-# setup the pymicroclimate service
-cd ~/r/braingram/pollinatorcam/services
-sudo ln -s ~/r/braingram/pollinatorcam/services/pymicroclimate.service /etc/systemd/system/pymicroclimate.service
-sudo systemctl enable pymicroclimate
-sudo systemctl start pymicroclimate
-```
