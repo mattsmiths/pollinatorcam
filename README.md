@@ -14,6 +14,9 @@ must be at the TOP of your bashrc (before the 'If not running interactively'... 
 You may have to use nano in the terminal to make these edits:
 
 TODO make a PCAM_HOME environment variable to make switching forks easier
+```bash
+sudo nano ~/.bashrc
+```
 
 ```bash
 export PCAM_USER="camera login user name"
@@ -29,7 +32,7 @@ Prepare for and clone this repository
 . ~/.bashrc
 mkdir -p ~/r/braingram
 cd ~/r/braingram
-git clone https://github.com/braingram/pollinatorcam.git
+git clone https://github.com/mattsmiths/pollinatorcam.git -b detection_network
 ```
 
 # Install pre-requisites
