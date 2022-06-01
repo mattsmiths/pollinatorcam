@@ -120,6 +120,16 @@ v4l2-ctl -l
 ```bash
 v4l2-ctl -d 0 -c exposure_auto=1 -c exposure_absolute=133 #example of editing acquisition from command line, disable auto-exposure
 ```
+```bash
+sudo apt install guvcview uvcdynctrl
+```
+```bash
+sudo systemctl stop pcam@ #hit tab to autocomplete for the connected cameras
+```
+```bash
+guvcview
+```
+
 # Setup FTP server (only required for IP cameras)
 
 ```bash
