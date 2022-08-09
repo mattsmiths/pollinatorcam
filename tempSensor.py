@@ -1,7 +1,10 @@
 """
     Modified MCC 134 probe:
     Purpose:
-        Read a single data value for each channel and write to csv file in /home/pi
+        Read a single data value for each channel and write to csv file in /mnt/data/tempProbes/
+        Each day creates a new CSV file
+        Temp probe 1 is to be paired with camera 1, and so on
+        CPU is cpu temperature in deg C
 """
 #%
 import csv
@@ -13,20 +16,27 @@ from time import sleep
 from sys import stdout
 from daqhats import mcc134, HatIDs, HatError, TcTypes
 from daqhats_utils import select_hat_device, tc_type_to_string
+import gpiozero as gz
 #%%
+
+in1 = open('/etc/hostname','r')
+hst1 = in1.readline().split('\n')[0]
+in1.close()
+
 ds1 = datetime.datetime.fromtimestamp(time.time())
 tempName = str(ds1.year)+'-'+str(ds1.month)+'-'+str(ds1.day)+'.csv'
+tempName1 = hst1+'_'+tempName
 
-if os.path.isdir('/home/pi/tempProbes/') == False:
-    os.mkdir('/home/pi/tempProbes/')
+if os.path.isdir('/mnt/data/tempProbes/') == False:
+    os.mkdir('/mnt/data/tempProbes/')
     
-if os.path.isfile('/home/pi/tempProbes/'+tempName) == False: #make new file everyday??
-    f = open('/home/pi/tempProbes/'+tempName, 'w')
+if os.path.isfile('/mnt/data/tempProbes/'+tempName1) == False: #make new file everyday??
+    f = open('/mnt/data/tempProbes/'+tempName1, 'w')
     writer = csv.writer(f)
-    heads = ['time','probe1','probe2','probe3','probe4']
+    heads = ['date','time','probe1','probe2','probe3','probe4','cpu']
     writer.writerow(heads)
     f.close()
-
+cpu1 = str(gz.CPUTemperature().temperature)
 
 # Constants
 CURSOR_BACK_2 = '\x1b[2D'
@@ -66,8 +76,8 @@ def main():
 
                 # Wait the specified interval between reads.
             tstamp = '%02d'%ds1.hour+':'+'%02d'%ds1.minute
-            finalLine = [tstamp,probVa[0],probVa[1],probVa[2],probVa[3]]
-            f = open('/home/pi/tempProbes/'+tempName, 'a')
+            finalLine = [tempName.split('.')[0],tstamp,probVa[0],probVa[1],probVa[2],probVa[3],cpu1]
+            f = open('/mnt/data/tempProbes/'+tempName1, 'a')
             writer = csv.writer(f)
             writer.writerow(finalLine)
             f.close()
