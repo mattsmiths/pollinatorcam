@@ -25,6 +25,12 @@ export PCAM_NAS_USER="ftp server user"
 export PCAM_NAS_PASSWORD="ftp server password"
 ```
 
+Update the raspberry pi hostname with a unique ID of your choosing
+```bash
+sudo nano /etc/hostname
+# autopolls have the naming scheme "AP_XX", where XX is a number ie; 05
+```
+
 # Clone this repository
 
 Prepare for and clone this repository
