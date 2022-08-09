@@ -41,7 +41,7 @@ default_cfg = {
     'detector': {
         'n_std': 3.0,
         'min_dev': 0.1,
-        'threshold': 0.6,
+        'threshold': 0.0,
          #'allow': '+insects',
          'allow': '',
     },
@@ -51,7 +51,7 @@ default_cfg = {
         'post_time': 2.0,
         'min_time': 10.0,
         'max_time': 20.0,
-        'periodic_still': 60,  # save every N seconds
+        'periodic_still': 5,  # save every N seconds
     },
     'properties': {
         'fourcc': cv2.VideoWriter_fourcc(*'MJPG'),
@@ -72,7 +72,7 @@ default_cfg = {
         #'frame_height': 480,
 
         'autofocus': 0,
-        'focus': 356,
+        'focus': 0.3, #356 - need to check raspbian OS for latest compatibility for focus parameters
 
         #'frame_width': 640,
         #'frame_height': 480,
