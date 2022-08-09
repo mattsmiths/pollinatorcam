@@ -88,6 +88,10 @@ cd ~/r/braingram/pollinatorcam
 pip install -e .
 pip install uwsgi
 ```
+Move latest object detection model to tfliteserve folder
+```bash
+sudo mv ~/braingram/pollinatorcam/tflite_20220630_1/ ~/braingram/tfliteserve/tflite_20220630_1
+```
 
 # Setup storage location
 
@@ -188,7 +192,7 @@ wget http://www.uugear.com/repo/WittyPi3/install.sh
 sudo sh install.sh
 ```
 ```bash
-sudo mv /home/pi/r/braingra/pollinatorcam/schedule.wpi /home/pi/wittypi/schedule.wpi
+sudo mv /home/pi/r/braingram/pollinatorcam/schedule.wpi /home/pi/wittypi/schedule.wpi
 sudo ./wittypi/runScript.sh
 ```
 
