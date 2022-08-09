@@ -36,6 +36,9 @@ import numpy
 from . import gstrecorder
 from . import cvrecorder
 
+hstname = open('/etc/hostname','r')
+hstname1 = hstname.readline().split('\n')[0]
+hstname.close()
 
 mask_consts = {
 #    'insects': [('slice', 75, 1067), 2291],
@@ -361,7 +364,7 @@ class TriggeredRecording(Trigger):
             os.makedirs(d)
         return os.path.join(
             d,
-            '%s_%s.jpg' % (dt.strftime('%H%M%S_%f'), self.name))
+            hstname1+'_'+%s_%s.jpg' % (dt.strftime('%H%M%S_%f'), self.name))
 
     def activate(self, t):
         super(TriggeredRecording, self).activate(t)
