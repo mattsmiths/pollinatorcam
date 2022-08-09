@@ -90,7 +90,7 @@ pip install uwsgi
 ```
 Move latest object detection model to tfliteserve folder
 ```bash
-sudo mv ~/braingram/pollinatorcam/tflite_20220630_1/ ~/braingram/tfliteserve/tflite_20220630_1
+sudo mv ~/r/braingram/pollinatorcam/tflite_20220630_1/ ~/r/braingram/tfliteserve/tflite_20220630_1
 ```
 
 # Setup storage location
