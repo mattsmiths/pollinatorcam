@@ -318,7 +318,20 @@ class Grabber:
                 coords, cim, detector = patch
 
                 # run classification on cropped image
+                ## Log inference time to a text file on desktop
+                #l1 = time.monotonic()
                 o = self.client.run(cim)
+                #l2 = time.monotonic()
+                #d_ = l2-l1
+                #timeLogger = '~/Desktop/inferenceCam.txt'
+                #if os.path.isfile(timeLogger) == False:
+                #    tzFile = open(timeLogger,'w')
+                #else:
+                #    tzFile = open(timeLogger,'a')
+                #dt45 = datetime.datetime.now()
+                #tmp45 = '%s'%(dt45.strftime('%H%M%S_%f'))
+                #tzFile.write(str(d_)+' '+str(self.name)+' '+tmp45+' \n'
+                #tzFile.close()
                 bboxes = {}
                 if self.client.buffers.meta.get('type', 'classifier') == 'detector':
                     # output is from a detection network
