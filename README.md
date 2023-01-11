@@ -174,14 +174,14 @@ cd ~/daqhats
 sudo ./install.sh
 ```
 ```bash
-sudo chmod 775 /home/pi/r/braingram/pollinatorcam/tempSensor.py
-sudo mv /home/pi/r/braingram/pollinatorcam/tempSensor.py ~/daqhats/examples/python/mcc134/tempSensor.py
+sudo chmod 775 ~/r/braingram/pollinatorcam/tempSensor.py
+sudo mv ~/r/braingram/pollinatorcam/tempSensor.py ~/daqhats/examples/python/mcc134/tempSensor.py
 ```
 Open crontab and add this line
 ```bash
-*/5  * * * * sudo python3 /home/pi/daqhats/examples/python/mcc134/tempSensor.py
+* * * * * sudo python3 ~/daqhats/examples/python/mcc134/tempSensor.py
 ```
-Run sudo python /home/pi/daqhats/examples/python/mcc134/tempSensor.py
+Run sudo python ~/daqhats/examples/python/mcc134/tempSensor.py
 Confirm a folder in /home/pi/ titled "tempProbes" and a csv with a temp reading is generated
 
 # Install wittyPi libraries and script
@@ -192,7 +192,7 @@ wget http://www.uugear.com/repo/WittyPi3/install.sh
 sudo sh install.sh
 ```
 ```bash
-sudo mv /home/pi/r/braingram/pollinatorcam/schedule.wpi /home/pi/wittypi/schedule.wpi
+sudo mv ~/r/braingram/pollinatorcam/schedule.wpi ~/wittypi/schedule.wpi
 sudo ./wittypi/runScript.sh
 ```
 
