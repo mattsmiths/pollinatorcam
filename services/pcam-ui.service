@@ -6,7 +6,7 @@ After=network.target nginx.service systemd-tmpfiles-setup.service
 User=pi
 Group=pi
 WorkingDirectory=~/r/braingram/pollinatorcam
-ExecStart=/bin/bash -c "PATH=~.virtualenvs/pollinatorcam/bin:$PATH exec /home/pi/.virtualenvs/pollinatorcam/bin/uwsgi --ini pcam-ui.ini"
+ExecStart=/bin/bash -c "PATH=~.virtualenvs/pollinatorcam/bin:$PATH exec ~.virtualenvs/pollinatorcam/bin/uwsgi --ini pcam-ui.ini"
 
 [Install]
 WantedBy=multi-user.target
