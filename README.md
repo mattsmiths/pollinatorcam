@@ -38,7 +38,7 @@ Prepare for and clone this repository
 . ~/.bashrc
 mkdir -p ~/r/braingram
 cd ~/r/braingram
-git clone https://github.com/mattsmiths/pollinatorcam.git -b detection_network
+git clone https://github.com/Crall-Lab/pollinatorcam.git -b detection_network
 ```
 
 # Install pre-requisites
