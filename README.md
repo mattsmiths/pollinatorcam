@@ -18,6 +18,7 @@ TODO make a PCAM_HOME environment variable to make switching forks easier
 sudo nano ~/.bashrc
 ```
 
+#Add custom user name and password for UI access
 ```bash
 export PCAM_USER="camera login user name"
 export PCAM_PASSWORD="camera login password"
