@@ -218,3 +218,5 @@ username and password (like the default admin/admin).
 python3 -m pollinatorcam configure -i 10.1.1.153 -u admin -p admin
 ```
 
+# Viewing camera
+In the browser on the pi, you can view attached cameras and change parameters by connecting to the UI: open a browser, and type in "127.0.0.1"
