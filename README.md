@@ -47,6 +47,7 @@ git clone https://github.com/mattsmiths/pollinatorcam.git -b detection_network
 sudo apt update
 sudo apt install python3-numpy python3-opencv python3-requests python3-flask python3-systemd nginx-full vsftpd virtualenvwrapper apache2-utils python3-gst-1.0 gstreamer1.0-tools nmap
 echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
+pip install setuptools==65.7.0
 ```
 
 # Setup virtualenv
@@ -94,9 +95,11 @@ sudo mv ~/r/braingram/pollinatorcam/tflite_20220630_1/ ~/r/braingram/tfliteserve
 ```
 
 # Setup storage location
+Before running these lines, make sure to have your external USB device (e.g., thumb drive) connected to te pi
 
-This assumes you're using an external storage drive that shows up as /dev/sda1. One option is to setup the drive as ntfs.
-To format the drive as ntfs (to allow for >2TB volumes) in fdisk you will need to:
+This assumes you're using an external storage drive that shows up as /dev/sda1. You can check thumbdrive mounting location using - "sudo fdisk -l"
+One option is to setup the drive as ntfs.
+To format the drive as ntfs (to allow for >2TB volumes) in fdisk you will need to do the following:
 ```bash
 # confirm /dev/sda is your external drive before proceeding
 # open fdisk
