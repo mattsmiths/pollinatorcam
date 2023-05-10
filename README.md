@@ -48,8 +48,8 @@ git clone https://github.com/mattsmiths/pollinatorcam.git -b detection_network
 sudo apt update
 sudo apt install python3-numpy python3-opencv python3-requests python3-flask python3-systemd nginx-full vsftpd virtualenvwrapper apache2-utils python3-gst-1.0 gstreamer1.0-tools nmap
 echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
-pip install setuptools==65.7.0
-pip install systemd
+pip3 install setuptools==65.7.0
+pip3 install systemd
 ```
 
 # Setup virtualenv
