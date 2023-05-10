@@ -192,8 +192,9 @@ Confirm a folder in /home/pi/ titled "tempProbes" and a csv with a temp reading 
 # Install wittyPi libraries and script
 
 Attach the wittyPi on top of the thermocouples 40 pin GPIO, then run commands below
+If using an old wittyPi replace with "WittyPi3"
 ```bash
-wget http://www.uugear.com/repo/WittyPi3/install.sh
+wget http://www.uugear.com/repo/WittyPi4/install.sh
 sudo sh install.sh
 ```
 ```bash
