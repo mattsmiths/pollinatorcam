@@ -223,5 +223,20 @@ username and password (like the default admin/admin).
 python3 -m pollinatorcam configure -i 10.1.1.153 -u admin -p admin
 ```
 
-# Viewing camera
-In the browser on the pi, you can view attached cameras and change parameters by connecting to the UI: open a browser, and type in "127.0.0.1"
+# Viewing and focusing camera
+The default setting are set up for a focal distance of ~20 cm. If you want to confirm focus and see a previs of the camera, one option is to install and use guvcview. Install with the following command in terminal:
+
+```bash
+sudo apt install guvcview
+```
+
+Now you can preview the camera with the following command:
+```bash
+guvcview
+```
+This will open a window with a preview of the camera view, and allow you to adjust camera settings
+
+Alternatively, in the browser on the pi, you can view attached cameras and change parameters by connecting to the UI: open a browser, and type in "127.0.0.1". (NB this is currently very laggy)
+
+# Confirm everything is working!
+TODO add notes here on what to loook for to confirm data is being captured and services are running (i.e., 'systemctl | grep pcam' commands, folder structure, etc)
