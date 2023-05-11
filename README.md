@@ -51,8 +51,8 @@ sudo apt install python3-numpy python3-opencv python3-requests python3-flask pyt
 
 ```bash
 echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
-pip install setuptools==65.7.0
-pip install systemd
+pip3 install setuptools==65.7.0
+pip3 install systemd
 ```
 
 # Setup virtualenv
@@ -195,8 +195,9 @@ Confirm a folder in /home/pi/ titled "tempProbes" and a csv with a temp reading 
 # Install wittyPi libraries and script
 
 Attach the wittyPi on top of the thermocouples 40 pin GPIO, then run commands below
+If using an old wittyPi replace with "WittyPi3"
 ```bash
-wget http://www.uugear.com/repo/WittyPi3/install.sh
+wget http://www.uugear.com/repo/WittyPi4/install.sh
 sudo sh install.sh
 ```
 ```bash
