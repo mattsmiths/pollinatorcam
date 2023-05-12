@@ -72,7 +72,7 @@ default_cfg = {
         #'frame_height': 480,
 
         'autofocus': 0,
-        'focus': 0.3, #356 - need to check raspbian OS for latest compatibility for focus parameters
+        'focus': 356, #356 - need to check raspbian OS for latest compatibility for focus parameters
 
         #'frame_width': 640,
         #'frame_height': 480,
@@ -305,7 +305,8 @@ class Grabber:
             #print(im.mean())
             #t = im.mean() < 100
             if time.monotonic() - self.last_detection > 5.0:
-                set_trigger = not self.trigger.active
+                set_trigger = False # Updating for turning off inference
+                #set_trigger = not self.trigger.active
                 logging.info("Faking detection, flipping trigger to %s" % set_trigger)
                 self.last_detection = time.monotonic()
         else:
