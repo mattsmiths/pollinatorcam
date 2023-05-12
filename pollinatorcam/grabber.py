@@ -72,7 +72,7 @@ default_cfg = {
         #'frame_height': 480,
 
         'autofocus': 0,
-        'focus': 0.3, #356 - need to check raspbian OS for latest compatibility for focus parameters
+        'focus': 356, #356 - need to check raspbian OS for latest compatibility for focus parameters
 
         #'frame_width': 640,
         #'frame_height': 480,
