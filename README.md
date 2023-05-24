@@ -94,7 +94,22 @@ pip install uwsgi
 ```
 Move latest object detection model to tfliteserve folder
 ```bash
-sudo mv ~/r/braingram/pollinatorcam/tflite_20220630_1/ ~/r/braingram/tfliteserve/tflite_20220630_1
+sudo cp /home/pi/r/braingram/pollinatorcam/tflite_20220630_1/ ~/r/braingram/tfliteserve/tflite_20220630_1
+
+sudo mkdir /home/pi/r/braingram/pollinatorcam/tflite_2023/
+sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite_UINT8_AP24.tflite /home/pi/r/braingram/tfliteserve/tflite_2023/ssd_single.tflite
+
+sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite_UINT8_AP24_edgetpu.tflite /home/pi/r/braingram/tfliteserve/tflite_2023/ssd_single_edge.tflite
+
+sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite_UINT8_AP26.tflite /home/pi/r/braingram/tfliteserve/tflite_2023/ssd_multi.tflite
+
+sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite_UINT8_AP26_edgetpu.tflite /home/pi/r/braingram/tfliteserve/tflite_2023/ssd_multi_edge.tflite
+
+sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite_UINT8_AP26_edgetpu.tflite /home/pi/r/braingram/tfliteserve/tflite_2023/ssd_multi_edge.tflite
+
+sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite.txt /home/pi/r/braingram/tfliteserve/tflite_2023/multi.txt
+
+sudo cp /home/pi/r/braingram/pollinatorcam/tflite_20220630_1/labels.txt /home/pi/r/braingram/tfliteserve/tflite_2023/single.txt
 ```
 
 # Setup storage location
