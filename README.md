@@ -50,6 +50,7 @@ sudo apt install python3-numpy python3-opencv python3-requests python3-flask pyt
 echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
 pip3 install setuptools==65.7.0
 pip3 install systemd
+sudo apt-get install jq
 ```
 
 # Setup virtualenv
