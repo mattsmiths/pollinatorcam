@@ -26,12 +26,6 @@ export PCAM_NAS_USER="ftp server user"
 export PCAM_NAS_PASSWORD="ftp server password"
 ```
 
-Update the raspberry pi hostname with a unique ID of your choosing
-```bash
-sudo nano /etc/hostname
-# autopolls have the naming scheme "AP_XX", where XX is a number ie; 05
-```
-
 # Clone this repository
 
 Prepare for and clone this repository
@@ -104,6 +98,7 @@ sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite_UI
 sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite_UINT8_AP26_edgetpu.tflite /home/pi/r/braingram/tfliteserve/tflite_2023/ssd_multi_edge.tflite
 sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite.txt /home/pi/r/braingram/tfliteserve/tflite_2023/multi.txt
 sudo cp /home/pi/r/braingram/pollinatorcam/tflite_20220630_1/labels.txt /home/pi/r/braingram/tfliteserve/tflite_2023/single.txt
+sudo cp /home/pi/r/braingram/pollinatorcam/configs /home/pi/Desktop/configs
 ```
 
 # Setup storage location
