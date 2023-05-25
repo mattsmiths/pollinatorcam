@@ -42,9 +42,6 @@ git clone https://github.com/mattsmiths/pollinatorcam.git -b detection_network
 sudo apt update
 sudo apt install python3-numpy python3-opencv python3-requests python3-flask python3-systemd nginx-full vsftpd virtualenvwrapper apache2-utils python3-gst-1.0 gstreamer1.0-tools nmap
 echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
-pip3 install setuptools==65.7.0
-pip3 install systemd
-sudo apt-get install jq
 ```
 
 # Setup virtualenv
@@ -99,6 +96,10 @@ sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite_UI
 sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite.txt /home/pi/r/braingram/tfliteserve/tflite_2023/multi.txt
 sudo cp /home/pi/r/braingram/pollinatorcam/tflite_20220630_1/labels.txt /home/pi/r/braingram/tfliteserve/tflite_2023/single.txt
 sudo cp /home/pi/r/braingram/pollinatorcam/configs /home/pi/Desktop/configs
+```
+Install json reading package
+```bash
+sudo apt-get install jq
 ```
 
 # Setup storage location
@@ -228,3 +229,9 @@ python3 -m pollinatorcam configure -i 10.1.1.153 -u admin -p admin
 
 # Viewing camera
 In the browser on the pi, you can view attached cameras and change parameters by connecting to the UI: open a browser, and type in "127.0.0.1"
+
+# If errors with systemD
+```bash
+pip3 install setuptools==65.7.0
+pip3 install systemd
+```
