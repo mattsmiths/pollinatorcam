@@ -1,10 +1,8 @@
-# Try to turn on your Raspberry Pi every hour sharp.
-# This script doesn't schedule the shutdown, which is supposed to be done externally.
-# You can shutdown your Raspberry Pi with your program just after finishing the job.
-#
-# [Tips]
-# Although the ON state is marked as 1 minute, its actual duration may vary.
-# The OFF state will end exactly 60 minutes after your RPi gets turned on.
+# This is our default witty pi On/Off schedule
+# The pi will turn on for the first 15 minutes of every hour
+# Starting at 7am 
+# Ending at 10pm
+# Feel free to edit to desired schedule
 
 BEGIN	2021-08-05 07:00:00
 END	2035-07-31 23:59:59
