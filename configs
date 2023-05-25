@@ -2,7 +2,7 @@
 	"hostname": "raspberrypi",
 	"model_inference": 1,
 	"classes": "single",
-	"coral": 1,
+	"coral": 0,
 	"threshold": 0.0,
 	"periodic_still": 3, 
 	"autofocus": 0,
