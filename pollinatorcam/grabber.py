@@ -89,19 +89,19 @@ if os.path.isfile(customSetting):
     in1.close()
 	
     # Override default settings with config file
-	default_cfg['properties']['autofocus'] = settingsL['autofocus']
-	default_cfg['properties']['focus'] = settingsL['focus']
-	default_cfg['recording']['periodic_still'] = settingsL['periodic_still']
-	default_cfg['detector']['threshold'] = settingsL['threshold']
+    default_cfg['properties']['autofocus'] = settingsL['autofocus']
+    default_cfg['properties']['focus'] = settingsL['focus']
+    default_cfg['recording']['periodic_still'] = settingsL['periodic_still']
+    default_cfg['detector']['threshold'] = settingsL['threshold']
 
     # Change hostname to match config file
-	names = open('/etc/hostname','r')
-	names1 = names.readlines()
-	names.close()
-	if names1[-1].split('\n')[0] != settingsL['hostname']:
-		names = open('/etc/hostname','a')
-		names.write(settingsL['hostname']+'\n')
-		names.close() 
+    names = open('/etc/hostname','r')
+    names1 = names.readlines()
+    names.close()
+    if names1[-1].split('\n')[0] != settingsL['hostname']:
+        names = open('/etc/hostname','a')
+        names.write(settingsL['hostname']+'\n')
+        names.close() 
 
 class Grabber:
     def __init__(
