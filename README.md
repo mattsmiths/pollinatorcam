@@ -4,10 +4,8 @@ Installation notes
 # Install OS
 
 Install latest Pi OS (Desktop: tested May 25th, 2023)
-
-Test conditions:
-
-Raspberry Pi 4 Model B Rev 1.5 [ 2GB ]
+* Test conditions:
+* Raspberry Pi 4 Model B Rev 1.5 [ 2GB ]
 
 Raspberry Pi OS (32-bit, released 05-03-2023) - from raspberry pi imager
 
