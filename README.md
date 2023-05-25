@@ -97,6 +97,7 @@ sudo cp /home/pi/r/braingram/pollinatorcam/testModels/ssd_mobilenetV2_fpnlite.tx
 sudo cp /home/pi/r/braingram/pollinatorcam/tflite_20220630_1/labels.txt /home/pi/r/braingram/tfliteserve/tflite_2023/single.txt
 sudo cp /home/pi/r/braingram/pollinatorcam/configs /home/pi/Desktop/configs
 sudo chmod 777 /home/pi/Desktop/configs
+sudo chmod 777 /home/pi/r/braingram/tflite_2023/
 ```
 Install json reading package
 ```bash
