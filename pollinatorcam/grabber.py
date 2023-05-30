@@ -372,7 +372,7 @@ class Grabber:
                                     (label_id, self.n_classes))
                                 continue
                             else:
-                                label_id = 1
+                                label_id = 0
                         o[0, label_id] = max(o[0, label_id], score)
                         if label_id not in bboxes:
                             bboxes[label_id] = []
