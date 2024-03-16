@@ -78,6 +78,7 @@ sudo apt-get update
 #sudo apt install python3-tflite-runtime
 pip install tflite-runtime==2.14.0
 sudo apt-get install libedgetpu1-std
+pip3 install setuptools==65.7.0
 
 pip3 install -e .
 # get model (TODO 404 permission denied, host this in repo or publicly)
