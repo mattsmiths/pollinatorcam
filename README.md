@@ -75,7 +75,8 @@ cd tfliteserve
 echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | sudo tee /etc/apt/sources.list.d/coral-edgetpu.list
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 sudo apt-get update
-sudo apt install python3-tflite-runtime
+#sudo apt install python3-tflite-runtime
+pip install tflite-runtime==2.14.0
 sudo apt-get install libedgetpu1-std
 
 pip3 install -e .
